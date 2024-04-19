@@ -1,0 +1,24 @@
+{
+    "KBHit":false,
+    "binFileName":"reduce_mean_d_15359573385879116109_1",
+    "binFileSuffix":".o",
+    "blockDim":32,
+    "coreType":"AiCore",
+    "deterministic":"false",
+    "globalworkspace_spec_workspace":{
+        "size":32,
+        "type":0
+    },
+    "kernelName":"reduce_mean_d_15359573385879116109_1__kernel0",
+    "magic":"RT_DEV_BINARY_MAGIC_ELF",
+    "memoryStamping":[],
+    "opParaSize":0,
+    "parameters":[
+        null,
+        {
+            "dtype":"float32",
+            "init_value":0.0
+        }
+    ],
+    "sha256":"55dff884368504c15667048aaf61f7bb648e5619161ca1d1f622becf8b121792"
+}

@@ -1,0 +1,22 @@
+{
+    "KBHit":false,
+    "binFileName":"te_fusion_add_log_6120011359955066189_1",
+    "binFileSuffix":".o",
+    "blockDim":1,
+    "coreType":"AiCore",
+    "deterministic":"ignore",
+    "globalworkspace_spec_workspace":{
+        "size":32,
+        "type":0
+    },
+    "kernelName":"te_fusion_add_log_6120011359955066189_1__kernel0",
+    "magic":"RT_DEV_BINARY_MAGIC_ELF",
+    "memoryStamping":[],
+    "opParaSize":0,
+    "parameters":[
+        null,
+        null,
+        null
+    ],
+    "sha256":"cd41000e08f102ef55bf8095a4498f56ae21e9abc5135a3bd3696e8e840f971c"
+}

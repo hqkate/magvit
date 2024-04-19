@@ -1,0 +1,21 @@
+{
+    "KBHit":false,
+    "binFileName":"te_fusion_relu_cast_10799674722582244940_1",
+    "binFileSuffix":".o",
+    "blockDim":32,
+    "coreType":"AiCore",
+    "deterministic":"ignore",
+    "globalworkspace_spec_workspace":{
+        "size":32,
+        "type":0
+    },
+    "kernelName":"te_fusion_relu_cast_10799674722582244940_1__kernel0",
+    "magic":"RT_DEV_BINARY_MAGIC_ELF",
+    "memoryStamping":[],
+    "opParaSize":0,
+    "parameters":[
+        null,
+        null
+    ],
+    "sha256":"5df137af1306e77356519759e52d5807a13a71f98ef7555dbea97f233ad69983"
+}

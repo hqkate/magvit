@@ -1,0 +1,21 @@
+{
+    "KBHit":false,
+    "binFileName":"te_fusion_reduce_sum_d_neg_exp_2833641436140374382_1",
+    "binFileSuffix":".o",
+    "blockDim":1,
+    "coreType":"AiCore",
+    "deterministic":"ignore",
+    "globalworkspace_spec_workspace":{
+        "size":32,
+        "type":0
+    },
+    "kernelName":"te_fusion_reduce_sum_d_neg_exp_2833641436140374382_1__kernel0",
+    "magic":"RT_DEV_BINARY_MAGIC_ELF",
+    "memoryStamping":[],
+    "opParaSize":0,
+    "parameters":[
+        null,
+        null
+    ],
+    "sha256":"8f98e52c4364c8d80c2b9ab69d37cd386e7612030a5bb192d9f82fc7ae902856"
+}

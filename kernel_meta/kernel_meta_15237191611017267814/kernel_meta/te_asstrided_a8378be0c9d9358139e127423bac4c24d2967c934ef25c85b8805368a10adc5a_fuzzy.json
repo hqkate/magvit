@@ -1,0 +1,34 @@
+{
+    "binFileName":"te_asstrided_a8378be0c9d9358139e127423bac4c24d2967c934ef25c85b8805368a10adc5a_fuzzy",
+    "binFileSuffix":".o",
+    "blockDim":-1,
+    "compileInfo":{
+        "_cube_vector_core_type":"AiCore",
+        "device_id":null,
+        "vars":{
+            "core_num":32,
+            "max_elem_cnt":65280
+        }
+    },
+    "coreType":"AiCore",
+    "deterministic":"ignore",
+    "globalworkspace_spec_workspace":{
+        "size":32,
+        "type":0
+    },
+    "kernelName":"te_asstrided_a8378be0c9d9358139e127423bac4c24d2967c934ef25c85b8805368a10adc5a_fuzzy__kernel0",
+    "magic":"RT_DEV_BINARY_MAGIC_ELF",
+    "memoryStamping":[
+        -1
+    ],
+    "opParaSize":704,
+    "parameters":[
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+    ],
+    "sha256":"686a7e356aa6d19e2e9b547a001f57b995749b4fe6b543abd54d6d58ae680805"
+}
