@@ -8,7 +8,6 @@ from videogvt.models.vqvae.model_utils import (
     ResidualNet,
     Downsample,
     CausalConv3d,
-    CausalConv3D,
     GroupNormExtend,
     _get_selected_flags,
 )
@@ -161,7 +160,7 @@ class Encoder3D(nn.Cell):
 
 class Encoder_v2(nn.Cell):
     def __init__(self, config):
-        super(Encoder3D, self).__init__()
+        super(Encoder_v2, self).__init__()
 
         self.config = config
         self.in_channels = 3

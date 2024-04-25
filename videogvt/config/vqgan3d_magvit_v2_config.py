@@ -44,6 +44,10 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqvae.conv_downsample = False
     config.vqvae.deconv_upsample = False
 
+    config.discriminator = ml_collections.ConfigDict()
+    config.discriminator.filters = config.vqvae.get_oneway_ref("filters")
+    config.discriminator.channel_multipliers = (2, 4, 4, 4, 4)
+
     # Save memory
     config.vqvae.num_enc_remat_blocks = 0
     config.vqvae.num_dec_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")

@@ -166,7 +166,7 @@ class CausalConv3d(nn.Cell):
         return self.conv(x)
 
 
-class CausalConv3D(nn.Cell):
+class CausalConv3dZeroPad(nn.Cell):
     def __init__(
         self, chan_in, chan_out, kernel_size: Union[int, Tuple[int, int, int]], **kwargs
     ):
