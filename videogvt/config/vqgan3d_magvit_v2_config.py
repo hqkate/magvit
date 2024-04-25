@@ -9,7 +9,7 @@ from videogvt.config import vqgan2d_ucf101_config
 VARIANT = "VQGAN/3D"
 
 
-def get_config(config_str="B"):
+def get_config(config_str="MAGVIT-V2"):
     """Returns the base experiment configuration."""
     version, *options = config_str.split("-")
 
@@ -18,9 +18,9 @@ def get_config(config_str="B"):
     model_class, model_type = VARIANT.split("/")
 
     # Overall
-    config.batch_size = {"B": 128, "L": 256, "H": 256}[version]
+    config.batch_size = 128
     config.eval_batch_size = config.get_ref("batch_size") // 4
-    config.num_training_epochs = {"B": 500, "L": 2000, "H": 2000}[version]
+    config.num_training_epochs = 500
 
     # Dataset.
     del config.num_train_sampled_frames
@@ -33,18 +33,19 @@ def get_config(config_str="B"):
     config.vqgan.model_type = model_type
 
     config.vqvae.architecture = "3dcnn"
-    config.vqvae.codebook_size = {"B": 1024, "L": 1024, "H": 4096}[version]
-    config.vqvae.filters = {"B": 64, "L": 128, "H": 128}[version]
-    config.vqvae.num_enc_res_blocks = {"B": 2, "L": 2, "H": 4}[version]
-    config.vqvae.num_dec_res_blocks = {"B": 2, "L": 2, "H": 4}[version]
+    config.vqvae.codebook_size = 1024
+    config.vqvae.filters = 128
+    config.vqvae.upsample = "deconv"
+    config.vqvae.num_enc_res_blocks = 4
+    config.vqvae.num_dec_res_blocks = 4
     config.vqvae.channel_multipliers = (1, 2, 2, 4, 4)
-    config.vqvae.temporal_downsample = (True, True, False)
-    config.vqvae.embedding_dim = {"B": 256, "L": 256, "H": 512}[version]
+    config.vqvae.temporal_downsample = (True, True, True, False, False)
+    config.vqvae.embedding_dim = 256
     config.vqvae.conv_downsample = False
     config.vqvae.deconv_upsample = False
 
     # Save memory
-    config.vqvae.num_enc_remat_blocks = {"B": 0, "L": 1, "H": 3}[version]
+    config.vqvae.num_enc_remat_blocks = 0
     config.vqvae.num_dec_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
     config.discriminator.num_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
 

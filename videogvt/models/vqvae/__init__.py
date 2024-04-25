@@ -1,1 +1,1 @@
-from .vqvae import VQVAE
+from .vqvae import VQVAE, VQVAE3D
