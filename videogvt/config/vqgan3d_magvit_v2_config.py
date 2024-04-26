@@ -33,6 +33,8 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqgan.model_type = model_type
 
     config.vqvae.architecture = "3dcnn"
+    config.vqvae.channels = 3
+    config.vqvae.middle_channles = 18
     config.vqvae.codebook_size = 1024
     config.vqvae.filters = 128
     config.vqvae.upsample = "deconv"

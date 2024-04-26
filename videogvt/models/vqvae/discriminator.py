@@ -33,7 +33,7 @@ class ResBlockDown(nn.Cell):
         out_channels=None,
         dropout=0.1,
     ):
-        super().__init__()
+        super(ResBlockDown, self).__init__()
         self.in_channels = in_channels
         self.out_channels = in_channels if out_channels is None else out_channels
 

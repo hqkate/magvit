@@ -4,7 +4,7 @@ from mindspore.common.initializer import Uniform
 import numpy as np
 
 
-class VectorQuantizer(nn.Cell):
+class VQ(nn.Cell):
     """
     Discretization bottleneck part of the VQ-VAE.
 
@@ -15,7 +15,7 @@ class VectorQuantizer(nn.Cell):
     """
 
     def __init__(self, n_e, e_dim, beta):
-        super(VectorQuantizer, self).__init__()
+        super(VQ, self).__init__()
         self.n_e = n_e
         self.e_dim = e_dim
         self.beta = beta
@@ -86,9 +86,10 @@ class VectorQuantizer(nn.Cell):
 
         # reshape back to match original input shape
         # z_q = z_q.permute(0, 3, 1, 2)
-        z_q = z_q.permute(0, 4, 1, 2, 3) # 3d
+        z_q = z_q.permute(0, 4, 1, 2, 3)  # 3d
 
-        return loss, z_q, perplexity, min_encodings, min_encoding_indices
+        # return loss, z_q, perplexity, min_encodings, min_encoding_indices
+        return z_q, loss
 
 
 class ExponentialMovingAverage(nn.Cell):
