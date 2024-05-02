@@ -31,11 +31,11 @@ from mindspore import nn, ops
 
 # constants
 
-Return = namedtuple("Return", ["quantized", "indices", "entropy_aux_loss"])
+# Return = namedtuple("Return", ["quantized", "indices", "entropy_aux_loss"])
 
-LossBreakdown = namedtuple(
-    "LossBreakdown", ["per_sample_entropy", "batch_entropy", "commitment"]
-)
+# LossBreakdown = namedtuple(
+#     "LossBreakdown", ["per_sample_entropy", "batch_entropy", "commitment"]
+# )
 
 # helper functions
 
@@ -65,7 +65,7 @@ def log(t, eps=1e-5):
 
 
 def entropy(prob):
-    return (-prob * log(prob)).sum(dim=-1)
+    return (-prob * log(prob)).sum(axis=-1)
 
 
 # class
@@ -255,16 +255,16 @@ class LFQ(nn.Cell):
         # calculate indices
 
         # indices = reduce((x > 0).int() * self.mask.int(), 'b n c d -> b n c', 'sum')
-        indices = ops.sum((x > 0).int() * self.mask.int(), dim=-1)
+        # indices = ops.sum((x > 0).int() * self.mask.int(), dim=-1)
 
         # entropy aux loss
 
         if self.training:
             # the same as euclidean distance up to a constant
             # distance = -2 * einsum('... i d, j d -> ... i j', original_input, self.codebook)
-            distance = -2 * ops.MatMul(transpose_a=True)(original_input, self.codebook)
+            distance = 2 * ops.matmul(original_input, self.codebook.t())
 
-            prob = (-distance * inv_temperature).softmax(axis=-1)
+            prob = ops.softmax(distance * inv_temperature, axis=-1)
 
             # account for mask
 
@@ -272,8 +272,8 @@ class LFQ(nn.Cell):
             #     prob = prob[mask]
             # else:
             # prob = rearrange(prob, 'b n ... -> (b n) ...')
-            b, n, h, w, d = prob.shape
-            prob = prob.reshape(b * n, h, w, d)
+            b, n, c, d = prob.shape
+            prob = prob.reshape(b * n, c, d)
 
             # whether to only use a fraction of probs, for reducing memory
 
@@ -313,8 +313,8 @@ class LFQ(nn.Cell):
         if self.training:
             commit_loss = ops.mse_loss(original_input, quantized, reduction="none")
 
-            if exists(mask):
-                commit_loss = commit_loss[mask]
+            # if exists(mask):
+            #     commit_loss = commit_loss[mask]
 
             commit_loss = commit_loss.mean()
         else:
@@ -339,21 +339,21 @@ class LFQ(nn.Cell):
         x = x.permute(0, 4, 1, 2, 3)
 
         # indices = unpack_one(indices, ps, 'b * c')
-        indices_shape = indices.shape
-        new_shape = (
-            indices_shape[0],
-            x_shape[1],
-            x_shape[2],
-            x_shape[3],
-            indices_shape[-1],
-        )
-        indices = indices.reshape(new_shape)
+        # indices_shape = indices.shape
+        # new_shape = (
+        #     indices_shape[0],
+        #     x_shape[1],
+        #     x_shape[2],
+        #     x_shape[3],
+        #     indices_shape[-1],
+        # )
+        # indices = indices.reshape(new_shape)
 
         # whether to remove single codebook dim
 
-        if not self.keep_num_codebooks_dim:
-            # indices = rearrange(indices, '... 1 -> ...')
-            indices = indices.unsqueeze(-1)
+        # if not self.keep_num_codebooks_dim:
+        #     # indices = rearrange(indices, '... 1 -> ...')
+        #     indices = indices.unsqueeze(-1)
 
         # complete aux loss
 
@@ -362,10 +362,8 @@ class LFQ(nn.Cell):
             + commit_loss * self.commitment_loss_weight
         )
 
-        ret = Return(x, indices, aux_loss)
-
         if not self.return_loss_breakdown:
-            # return ret
-            return x
+            return (x, aux_loss)
 
-        return x, LossBreakdown(per_sample_entropy, codebook_entropy, commit_loss)
+        else:
+            return (x, aux_loss, per_sample_entropy, codebook_entropy, commit_loss)

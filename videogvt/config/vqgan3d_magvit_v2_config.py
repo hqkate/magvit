@@ -55,6 +55,10 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqvae.num_dec_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
     config.discriminator.num_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
 
+    # Loss
+    config.lr_configs.disc_weight = 0.1
+    config.lr_configs.disc_start = 1
+
     # Pretrained models on ImageNet.
     config.init_from = ml_collections.ConfigDict()
     config.init_from.inflation = "2d->3d"

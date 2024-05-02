@@ -1,9 +1,11 @@
 import mindspore as ms
 from mindspore import nn, ops
 
+
 from .lpips import LPIPS
 
 
+@ms.jit
 def _rearrange_in(x):
     b, c, t, h, w = x.shape
     x = x.permute(0, 2, 1, 3, 4)
@@ -15,98 +17,75 @@ def _rearrange_in(x):
 class GeneratorWithLoss(nn.Cell):
     def __init__(
         self,
-        autoencoder,
+        vqvae,
         disc_start=50001,
-        kl_weight=1.0e-06,
-        disc_weight=0.5,
+        disc_weight=0.1,
         disc_factor=1.0,
         perceptual_weight=1.0,
-        logvar_init=0.0,
+        recons_weight=5.0,
         discriminator=None,
         dtype=ms.float32,
+        **kwargs,
     ):
         super().__init__()
 
         # build perceptual models for loss compute
-        self.autoencoder = autoencoder
+        self.vqvae = vqvae
         # TODO: set dtype for LPIPS ?
         self.perceptual_loss = LPIPS()  # freeze params inside
 
         self.l1 = nn.L1Loss(reduction="none")
-        # TODO: is self.logvar trainable?
-        self.logvar = ms.Parameter(ms.Tensor([logvar_init], dtype=dtype))
 
         self.disc_start = disc_start
-        self.kl_weight = kl_weight
         self.disc_weight = disc_weight
         self.disc_factor = disc_factor
+        self.recons_weight = recons_weight
         self.perceptual_weight = perceptual_weight
 
         self.discriminator = discriminator
-        # assert discriminator is None, "Discriminator is not supported yet"
-
-    def kl(self, mean, logvar):
-        # cast to fp32 to avoid overflow in exp and sum ops.
-        mean = mean.astype(ms.float32)
-        logvar = logvar.astype(ms.float32)
-
-        var = ops.exp(logvar)
-        kl_loss = 0.5 * ops.sum(
-            ops.pow(mean, 2) + var - 1.0 - logvar,
-            dim=[1, 2, 3],
-        )
-        return kl_loss
+        if (self.discriminator is not None) and (self.disc_factor > 0.0):
+            self.has_disc = True
+        else:
+            self.has_disc = False
 
     def loss_function(
         self,
         x,
         recons,
-        mean,
-        logvar,
-        global_step: ms.Tensor = -1,
-        weights: ms.Tensor = None,
+        aux_loss,
         cond=None,
     ):
         bs = x.shape[0]
+        x_reshape = _rearrange_in(x)
+        recons_reshape = _rearrange_in(recons)
 
-        # 2.1 reconstruction loss in pixels
-        rec_loss = self.l1(x, recons)
+        # 2.1 entropy loss and commitment loss
+        loss = aux_loss
 
-        # 2.2 perceptual loss
+        # 2.2 reconstruction loss in pixels
+        rec_loss = self.l1(x_reshape, recons_reshape) * self.recons_weight
+
+        # 2.3 perceptual loss
         if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(x, recons)
+            p_loss = self.perceptual_loss(x_reshape, recons_reshape)
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
-        nll_loss = rec_loss / ops.exp(self.logvar) + self.logvar
-        if weights is not None:
-            weighted_nll_loss = weights * nll_loss
-            mean_weighted_nll_loss = weighted_nll_loss.sum() / bs
-            # mean_nll_loss = nll_loss.sum() / bs
-        else:
-            mean_weighted_nll_loss = nll_loss.sum() / bs
-            # mean_nll_loss = mean_weighted_nll_loss
-
-        # 2.3 kl loss
-        kl_loss = self.kl(mean, logvar)
-        kl_loss = kl_loss.sum() / bs
-
-        loss = mean_weighted_nll_loss + self.kl_weight * kl_loss
+        loss += rec_loss.mean()
 
         # 2.4 discriminator loss if enabled
-        # g_loss = ms.Tensor(0., dtype=ms.float32)
-        # TODO: how to get global_step?
-        if global_step >= self.disc_start:
-            if (self.discriminator is not None) and (self.disc_factor > 0.0):
-                # calc gan loss
-                if cond is None:
-                    logits_fake = self.discriminator(recons)
-                else:
-                    logits_fake = self.discriminator(ops.concat((recons, cond), dim=1))
-                g_loss = -ops.reduce_mean(logits_fake)
-                # TODO: do adaptive weighting based on grad
-                # d_weight = self.calculate_adaptive_weight(mean_nll_loss, g_loss, last_layer=last_layer)
-                d_weight = self.disc_weight
-                loss += d_weight * self.disc_factor * g_loss
+        g_loss = ms.Tensor(0.0, dtype=ms.float32)
+        if self.has_disc:
+            # calc gan loss
+            if cond is None:
+                logits_fake = self.discriminator(recons)
+            else:
+                logits_fake = self.discriminator(ops.concat((recons, cond), dim=1))
+            g_loss = -ops.mean(logits_fake)
+
+        # TODO: do adaptive weighting based on grad
+        # d_weight = self.calculate_adaptive_weight(mean_nll_loss, g_loss, last_layer=last_layer)
+        d_weight = self.disc_weight
+        loss += d_weight * self.disc_factor * g_loss
         # print(f"nll_loss: {mean_weighted_nll_loss.asnumpy():.4f}, kl_loss: {kl_loss.asnumpy():.4f}")
 
         """
@@ -131,29 +110,23 @@ class GeneratorWithLoss(nn.Cell):
     def construct(
         self,
         x: ms.Tensor,
-        global_step: ms.Tensor = -1,
-        weights: ms.Tensor = None,
         cond=None,
     ):
         """
         x: input images or videos, images: (b c h w), videos: (b c t h w)
-        weights: sample weights
         global_step: global training step
         """
 
-        # 1. AE forward, get posterior (mean, logvar) and recons
-        recons, mean, logvar = self.autoencoder(x)
+        # 1. AE forward, get aux_loss (entropy + commitment loss) and recons
+        _, _, recons, aux_loss = self.vqvae(x)
 
         # For videos, treat them as independent frame images
         # TODO: regularize on temporal consistency
-        if x.ndim >= 5:
-            # x: b c t h w -> (b*t c h w), shape for image perceptual loss
-            x = _rearrange_in(x)
-            recons = _rearrange_in(recons)
-            # mean and var kl loss
+        # if x.ndim >= 5:
+        # x: b c t h w -> (b*t c h w), shape for image perceptual loss
 
         # 2. compuate loss
-        loss = self.loss_function(x, recons, mean, logvar, global_step, weights, cond)
+        loss = self.loss_function(x, recons, aux_loss, cond)
 
         return loss
 
@@ -173,14 +146,14 @@ class DiscriminatorWithLoss(nn.Cell):
 
     def __init__(
         self,
-        autoencoder,
+        vqvae,
         discriminator,
         disc_start=50001,
         disc_factor=1.0,
         disc_loss="hinge",
     ):
         super().__init__()
-        self.autoencoder = autoencoder
+        self.vqvae = vqvae
         self.discriminator = discriminator
         self.disc_start = disc_start
         self.disc_factor = disc_factor
@@ -204,7 +177,7 @@ class DiscriminatorWithLoss(nn.Cell):
         )
         return d_loss
 
-    def construct(self, x: ms.Tensor, global_step=-1, cond=None):
+    def construct(self, x: ms.Tensor):
         """
         Second pass
         Args:
@@ -213,32 +186,16 @@ class DiscriminatorWithLoss(nn.Cell):
         """
 
         # 1. AE forward, get posterior (mean, logvar) and recons
-        recons, mean, logvar = ops.stop_gradient(self.autoencoder(x))
-
-        if x.ndim >= 5:
-            # TODO: use 3D discriminator
-            # x: b c t h w -> (b*t c h w), shape for image perceptual loss
-            x = _rearrange_in(x)
-            recons = _rearrange_in(recons)
+        _, _, recons, _ = self.vqvae(x)
 
         # 2. Disc forward to get class prediction on real input and reconstrucions
-        if cond is None:
-            logits_real = self.discriminator(x)
-            logits_fake = self.discriminator(recons)
-        else:
-            logits_real = self.discriminator(ops.concat((x, cond), dim=1))
-            logits_fake = self.discriminator(ops.concat((recons, cond), dim=1))
 
-        if global_step >= self.disc_start:
-            disc_factor = self.disc_factor
-        else:
-            disc_factor = 0.0
+        logits_real = self.discriminator(x)
+        logits_fake = self.discriminator(recons)
 
-        d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
+        # logits_real = self.discriminator(ops.concat((x, cond), dim=1))
+        # logits_fake = self.discriminator(ops.concat((recons, cond), dim=1))
 
-        # log = {"{}/disc_loss".format(split): d_loss.clone().detach().mean(),
-        #        "{}/logits_real".format(split): logits_real.detach().mean(),
-        #       "{}/logits_fake".format(split): logits_fake.detach().mean()
-        #       }
+        d_loss = self.disc_factor * self.disc_loss(logits_real, logits_fake)
 
         return d_loss

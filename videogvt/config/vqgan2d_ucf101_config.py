@@ -84,6 +84,7 @@ def get_config(config_str="B"):
     config.vqvae.entropy_temperature = 0.01
     config.vqvae.entropy_loss_type = "softmax"
     config.vqvae.commitment_cost = 0.25
+    config.vqvae.recons_loss_weight = 5.0
 
     config.vqvae.filters = {"B": 64, "L": 128}[version]
     config.vqvae.num_enc_res_blocks = 2

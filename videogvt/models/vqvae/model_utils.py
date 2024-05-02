@@ -197,11 +197,11 @@ def Normalize(in_channels, num_groups=32, extend=False):
     if extend:
         return GroupNormExtend(
             num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True
-        ).to_float(ms.float32)
+        )
     else:
         return nn.GroupNorm(
             num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True
-        ).to_float(ms.float32)
+        )
 
 
 class Upsample3D(nn.Cell):

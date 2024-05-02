@@ -1,2 +1,2 @@
 from .vqvae import VQVAE, VQVAE3D
-from .discriminator import StyleGANDiscriminator
+from .discriminator import StyleGANDiscriminator, SimpleDiscriminator

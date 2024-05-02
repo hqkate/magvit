@@ -55,7 +55,11 @@ class VQVAE(nn.Cell):
 
 class VQVAE3D(nn.Cell):
     def __init__(
-        self, config, save_img_embedding_map=False, lookup_free_quantization=False
+        self,
+        config,
+        save_img_embedding_map=False,
+        lookup_free_quantization=False,
+        is_training=False,
     ):
         super(VQVAE3D, self).__init__()
         # encode image into continuous latent space
@@ -74,7 +78,8 @@ class VQVAE3D(nn.Cell):
             self.vector_quantization = LFQ(
                 dim=m_dim,
                 codebook_size=n_embeddings,
-                return_loss_breakdown=True,
+                return_loss_breakdown=False,
+                is_training=is_training,
                 # **lfq_kwargs
             )
         else:
@@ -85,20 +90,12 @@ class VQVAE3D(nn.Cell):
         else:
             self.img_to_embedding_map = None
 
-    def construct(self, x, verbose=False):
+    def construct(self, x):
 
         z_e = self.encoder(x)
 
         z_e = self.pre_quantization_conv(z_e)
-        z_q, embedding_loss = self.vector_quantization(z_e)
-
+        z_q, aux_loss = self.vector_quantization(z_e)
         x_hat = self.decoder(z_q)
 
-        if verbose:
-            print("original data shape:", x.shape)
-            print("encoded data shape:", z_e.shape)
-            print("recon data shape:", x_hat.shape)
-            assert False
-
-        # return embedding_loss, x_hat, perplexity, z_e, z_q
-        return embedding_loss, x_hat, z_e, z_q
+        return z_e, z_q, x_hat, aux_loss

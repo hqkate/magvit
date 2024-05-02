@@ -8,8 +8,12 @@ import time
 
 import yaml
 from omegaconf import OmegaConf
-from opensora.data.loader import create_dataloader
-from opensora.models.ae.net_with_loss import DiscriminatorWithLoss, GeneratorWithLoss
+
+from videogvt.config.vqgan3d_magvit_v2_config import get_config
+from videogvt.config.vqvae_train_args import parse_args
+from videogvt.data.loader import create_dataloader
+from videogvt.models.vqvae import VQVAE3D, StyleGANDiscriminator
+from videogvt.models.vqvae.net_with_loss import DiscriminatorWithLoss, GeneratorWithLoss
 
 import mindspore as ms
 from mindspore import Model, nn
@@ -19,10 +23,13 @@ from mindspore.train.callback import TimeMonitor
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 mindone_lib_path = os.path.abspath(os.path.join(__dir__, "../../"))
 sys.path.insert(0, mindone_lib_path)
-from configs.ae.args_train import parse_args
 
 from mindone.env import init_train_env
-from mindone.trainers.callback import EvalSaveCallback, OverflowMonitor, ProfilerCallback
+from mindone.trainers.callback import (
+    EvalSaveCallback,
+    OverflowMonitor,
+    ProfilerCallback,
+)
 from mindone.trainers.checkpoint import CheckpointManager, resume_train_network
 from mindone.trainers.ema import EMA
 from mindone.trainers.lr_schedule import create_scheduler
@@ -39,10 +46,14 @@ os.environ["MS_ASCEND_CHECK_OVERFLOW_MODE"] = "INFNAN_MODE"
 logger = logging.getLogger(__name__)
 
 
-def create_loss_scaler(loss_scaler_type, init_loss_scale, loss_scale_factor=2, scale_window=1000):
+def create_loss_scaler(
+    loss_scaler_type, init_loss_scale, loss_scale_factor=2, scale_window=1000
+):
     if args.loss_scaler_type == "dynamic":
         loss_scaler = DynamicLossScaleUpdateCell(
-            loss_scale_value=args.init_loss_scale, scale_factor=args.loss_scale_factor, scale_window=args.scale_window
+            loss_scale_value=args.init_loss_scale,
+            scale_factor=args.loss_scale_factor,
+            scale_window=args.scale_window,
         )
     elif args.loss_scaler_type == "static":
         loss_scaler = nn.FixedLossScaleUpdateCell(args.init_loss_scale)
@@ -61,24 +72,34 @@ def main(args):
         seed=args.seed,
         distributed=args.use_parallel,
     )
-    set_logger(name="", output_dir=args.output_path, rank=rank_id, log_level=eval(args.log_level))
+    set_logger(
+        name="",
+        output_dir=args.output_path,
+        rank=rank_id,
+        log_level=eval(args.log_level),
+    )
 
     # 2. build models
-    #  autoencoder (G)
-    model_config = OmegaConf.load(args.model_config)
-    ae = instantiate_from_config(model_config.generator)
+    #  vqvae (G)
+    # model_config = OmegaConf.load(args.model_config)
+    # ae = instantiate_from_config(model_config.generator)
+    model_config = get_config("B")
+    vqvae = VQVAE3D(model_config, lookup_free_quantization=True, is_training=True)
     if args.pretrained is not None:
-        logger.info(f"Loading autoencoder from {args.pretrained}")
-        ms.load_checkpoint(args.pretrained, ae, filter_prefix=None)
+        logger.info(f"Loading vqvae from {args.pretrained}")
+        ms.load_checkpoint(args.pretrained, vqvae, filter_prefix=None)
 
     # discriminator (D)
-    use_discriminator = args.use_discriminator and (model_config.lossconfig.disc_weight > 0.0)
+    use_discriminator = args.use_discriminator and (
+        model_config.lr_configs.disc_weight > 0.0
+    )
 
-    if args.use_discriminator and (model_config.lossconfig.disc_weight <= 0.0):
+    if args.use_discriminator and (model_config.lr_configs.disc_weight <= 0.0):
         logging.warning("use_discriminator is True but disc_weight is 0.")
 
     if use_discriminator:
-        disc = instantiate_from_config(model_config.discriminator)
+        # disc = instantiate_from_config(model_config.discriminator)
+        disc = StyleGANDiscriminator(model_config, 128, 128, 16)
     else:
         disc = None
 
@@ -87,7 +108,7 @@ def main(args):
     if args.dtype != "fp32":
         amp_level = "O2"
         dtype = {"fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-        ae = auto_mixed_precision(ae, amp_level, dtype)
+        vqvae = auto_mixed_precision(vqvae, amp_level, dtype)
         if use_discriminator:
             disc = auto_mixed_precision(disc, amp_level, dtype)
         logger.info(f"Set mixed precision to O2 with dtype={args.dtype}")
@@ -96,15 +117,19 @@ def main(args):
 
     # 3. build net with loss (core)
     # G with loss
-    ae_with_loss = GeneratorWithLoss(ae, discriminator=disc, **model_config.lossconfig)
-    disc_start = model_config.lossconfig.disc_start
+    vqvae_with_loss = GeneratorWithLoss(
+        vqvae, discriminator=disc, **model_config.lr_configs
+    )
+    disc_start = model_config.lr_configs.disc_start
 
     # D with loss
     if use_discriminator:
-        disc_with_loss = DiscriminatorWithLoss(ae, disc, disc_start)
+        disc_with_loss = DiscriminatorWithLoss(vqvae, disc, disc_start)
 
-    tot_params, trainable_params = count_params(ae_with_loss)
-    logger.info("Total params {:,}; Trainable params {:,}".format(tot_params, trainable_params))
+    tot_params, trainable_params = count_params(vqvae_with_loss)
+    logger.info(
+        "Total params {:,}; Trainable params {:,}".format(tot_params, trainable_params)
+    )
 
     # 4. build dataset
     ds_config = dict(
@@ -124,7 +149,9 @@ def main(args):
             )
         )
         assert not (
-            args.num_frames % 2 == 0 and model_config.generator.params.ddconfig.split_time_upsample
+            # model_config.generator.params.ddconfig.split_time_upsample
+            args.num_frames % 2 == 0
+            and False
         ), "num of frames must be odd if split_time_upsample is True"
     else:
         ds_config.update(dict(expand_dim_t=args.expand_dim_t))
@@ -142,7 +169,12 @@ def main(args):
     # 5. build training utils
     # torch scale lr by: model.learning_rate = accumulate_grad_batches * ngpu * bs * base_lr
     if args.scale_lr:
-        learning_rate = args.base_learning_rate * args.batch_size * args.gradient_accumulation_steps * device_num
+        learning_rate = (
+            args.base_learning_rate
+            * args.batch_size
+            * args.gradient_accumulation_steps
+            * device_num
+        )
     else:
         learning_rate = args.base_learning_rate
 
@@ -160,21 +192,27 @@ def main(args):
     )
 
     # build optimizer
-    update_logvar = False  # in torch, ae_with_loss.logvar  is not updated.
+    update_logvar = False  # in torch, vqvae_with_loss.logvar  is not updated.
     if update_logvar:
-        ae_params_to_update = [ae_with_loss.autoencoder.trainable_params(), ae_with_loss.logvar]
+        vqvae_params_to_update = [
+            vqvae_with_loss.vqvae.trainable_params(),
+            vqvae_with_loss.logvar,
+        ]
     else:
-        ae_params_to_update = ae_with_loss.autoencoder.trainable_params()
-    optim_ae = create_optimizer(
-        ae_params_to_update,
+        vqvae_params_to_update = vqvae_with_loss.vqvae.trainable_params()
+    optim_vqvae = create_optimizer(
+        vqvae_params_to_update,
         name=args.optim,
         betas=args.betas,
         group_strategy=args.group_strategy,
         weight_decay=args.weight_decay,
         lr=lr,
     )
-    loss_scaler_ae = create_loss_scaler(
-        args.loss_scaler_type, args.init_loss_scale, args.loss_scale_factor, args.scale_window
+    loss_scaler_vqvae = create_loss_scaler(
+        args.loss_scaler_type,
+        args.init_loss_scale,
+        args.loss_scale_factor,
+        args.scale_window,
     )
 
     if use_discriminator:
@@ -187,12 +225,15 @@ def main(args):
             weight_decay=args.weight_decay,
         )
         loss_scaler_disc = create_loss_scaler(
-            args.loss_scaler_type, args.init_loss_scale, args.loss_scale_factor, args.scale_window
+            args.loss_scaler_type,
+            args.init_loss_scale,
+            args.loss_scale_factor,
+            args.scale_window,
         )
 
     ema = (
         EMA(
-            ae_with_loss.autoencoder,
+            vqvae_with_loss.vqvae,
             ema_decay=args.ema_decay,
         )
         if args.use_ema
@@ -205,21 +246,25 @@ def main(args):
     os.makedirs(ckpt_dir, exist_ok=True)
     start_epoch = 0
     if args.resume:
-        resume_ckpt = os.path.join(ckpt_dir, "train_resume.ckpt") if isinstance(args.resume, bool) else args.resume
+        resume_ckpt = (
+            os.path.join(ckpt_dir, "train_resume.ckpt")
+            if isinstance(args.resume, bool)
+            else args.resume
+        )
 
         start_epoch, loss_scale, cur_iter, last_overflow_iter = resume_train_network(
-            ae_with_loss, optim_ae, resume_ckpt
+            vqvae_with_loss, optim_vqvae, resume_ckpt
         )
-        loss_scaler_ae.loss_scale_value = loss_scale
-        loss_scaler_ae.cur_iter = cur_iter
-        loss_scaler_ae.last_overflow_iter = last_overflow_iter
+        loss_scaler_vqvae.loss_scale_value = loss_scale
+        loss_scaler_vqvae.cur_iter = cur_iter
+        loss_scaler_vqvae.last_overflow_iter = last_overflow_iter
         logger.info(f"Resume training from {resume_ckpt}")
 
     # training step
-    training_step_ae = TrainOneStepWrapper(
-        ae_with_loss,
-        optimizer=optim_ae,
-        scale_sense=loss_scaler_ae,
+    training_step_vqvae = TrainOneStepWrapper(
+        vqvae_with_loss,
+        optimizer=optim_vqvae,
+        scale_sense=loss_scaler_vqvae,
         drop_overflow_update=args.drop_overflow_update,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         clip_grad=args.clip_grad,
@@ -267,7 +312,7 @@ def main(args):
 
     # 6. training process
     if not use_discriminator:
-        model = Model(training_step_ae)
+        model = Model(training_step_vqvae)
 
         # callbacks
         callback = [TimeMonitor(args.log_interval)]
@@ -276,7 +321,7 @@ def main(args):
 
         if rank_id == 0:
             save_cb = EvalSaveCallback(
-                network=ae_with_loss.autoencoder,
+                network=vqvae_with_loss.vqvae,
                 rank_id=rank_id,
                 ckpt_save_dir=ckpt_dir,
                 ema=ema,
@@ -285,7 +330,7 @@ def main(args):
                 ckpt_save_interval=args.ckpt_save_interval,
                 log_interval=args.log_interval,
                 start_epoch=start_epoch,
-                model_name="vae_kl_f8",
+                model_name="vqvae_kl_f8",
                 record_lr=False,
             )
             callback.append(save_cb)
@@ -294,10 +339,10 @@ def main(args):
 
             logger.info("Start training...")
             # backup config files
-            shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
+            # shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
 
-            with open(os.path.join(args.output_path, "args.yaml"), "w") as f:
-                yaml.safe_dump(vars(args), stream=f, default_flow_style=False, sort_keys=False)
+            # with open(os.path.join(args.output_path, "args.yaml"), "w") as f:
+            #     yaml.safe_dump(vars(args), stream=f, default_flow_style=False, sort_keys=False)
 
         model.train(
             args.epochs,
@@ -317,29 +362,31 @@ def main(args):
             start_time_e = time.time()
             for step, data in enumerate(ds_iter):
                 start_time_s = time.time()
-                x = data["image"]
+                x = data[args.dataset_name]
 
                 global_step = epoch * dataset_size + step
                 global_step = ms.Tensor(global_step, dtype=ms.int64)
 
                 # NOTE: inputs must match the order in GeneratorWithLoss.construct
-                loss_ae_t, overflow, scaling_sens = training_step_ae(x, global_step)
+                loss_vqvae_t, overflow, scaling_sens = training_step_vqvae(x)
+                loss_disc_t, overflow_d, scaling_sens_d = training_step_disc(x)
 
-                if global_step >= disc_start:
-                    loss_disc_t, overflow_d, scaling_sens_d = training_step_disc(x, global_step)
-
-                cur_global_step = epoch * dataset_size + step + 1  # starting from 1 for logging
+                cur_global_step = (
+                    epoch * dataset_size + step + 1
+                )  # starting from 1 for logging
                 if overflow:
                     logger.warning(f"Overflow occurs in step {cur_global_step}")
 
                 # log
                 step_time = time.time() - start_time_s
                 if step % args.log_interval == 0:
-                    loss_ae = float(loss_ae_t.asnumpy())
-                    logger.info(f"E: {epoch+1}, S: {step+1}, Loss ae: {loss_ae:.4f}, Step time: {step_time*1000:.2f}ms")
-                    if global_step >= disc_start:
-                        loss_disc = float(loss_disc_t.asnumpy())
-                        logger.info(f"Loss disc: {loss_disc:.4f}")
+                    loss_vqvae = float(loss_vqvae_t.asnumpy())
+                    logger.info(
+                        f"E: {epoch+1}, S: {step+1}, Loss vqvae: {loss_vqvae:.4f}, Step time: {step_time*1000:.2f}ms"
+                    )
+
+                    loss_disc = float(loss_disc_t.asnumpy())
+                    logger.info(f"Loss disc: {loss_disc:.4f}")
 
             epoch_cost = time.time() - start_time_e
             per_step_time = epoch_cost / dataset_size
@@ -349,12 +396,16 @@ def main(args):
                 f"epoch time:{epoch_cost:.2f}s, per step time:{per_step_time*1000:.2f}ms, "
             )
             if rank_id == 0:
-                if (cur_epoch % args.ckpt_save_interval == 0) or (cur_epoch == args.epochs):
-                    ckpt_name = f"vae_kl_f8-e{cur_epoch}.ckpt"
+                if (cur_epoch % args.ckpt_save_interval == 0) or (
+                    cur_epoch == args.epochs
+                ):
+                    ckpt_name = f"vqvae_kl_f8-e{cur_epoch}.ckpt"
                     if ema is not None:
                         ema.swap_before_eval()
 
-                    ckpt_manager.save(ae, None, ckpt_name=ckpt_name, append_dict=None)
+                    ckpt_manager.save(
+                        vqvae, None, ckpt_name=ckpt_name, append_dict=None
+                    )
                     if ema is not None:
                         ema.swap_after_eval()
 

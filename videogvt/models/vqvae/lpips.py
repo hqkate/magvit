@@ -1,7 +1,7 @@
 import logging
 import os
 
-# import mindcv
+from mindcv.models import create_model
 
 import mindspore as ms
 import mindspore.nn as nn
@@ -34,7 +34,7 @@ class LPIPS(nn.Cell):
         for param in self.trainable_params():
             param.requires_grad = False
 
-    def load_from_pretrained(self, ckpt_path="models/ae/lpips_vgg-426bf45c.ckpt"):
+    def load_from_pretrained(self, ckpt_path="./checkpoints/lpips_vgg-426bf45c.ckpt"):
         # TODO: just load ms ckpt
         if not os.path.exists(ckpt_path):
             raise ValueError(
@@ -102,7 +102,7 @@ class vgg16(nn.Cell):
     def __init__(self, requires_grad=False, pretrained=True):
         super(vgg16, self).__init__()
         # FIXME: add bias in vgg. use the same model weights in PT.
-        model = mindcv.create_model("vgg16", pretrained=pretrained)
+        model = create_model("vgg16", pretrained=pretrained)
         model.set_train(False)
         vgg_pretrained_features = model.features
         self.slice1 = nn.SequentialCell()

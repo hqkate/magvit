@@ -1,6 +1,10 @@
+import os, sys
 import mindspore as ms
 import numpy as np
 from mindspore import context
+
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
 
 from videogvt.models.vqvae.lookup_free_quantization import LFQ
 from videogvt.config.vqgan3d_magvit_v2_config import get_config
@@ -19,12 +23,13 @@ n_embeddings = config.vqvae.codebook_size
 model = LFQ(
     dim=input_dim,
     codebook_size=n_embeddings,
-    return_loss_breakdown=True
+    return_loss_breakdown=False,
+    is_training=True,
 )
 
 x = ms.Tensor(np.random.rand(2, 18, 4, 16, 16), ms.float32)
 
-z_q, embedding_loss = model(x)
+z_q, aux_loss = model(x)
 
 print("original input shape: ", x.shape)
 print("quantized shape: ", z_q.shape)
