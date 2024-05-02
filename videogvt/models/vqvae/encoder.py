@@ -9,6 +9,7 @@ from videogvt.models.vqvae.model_utils import (
     Downsample,
     CausalConv3d,
     GroupNormExtend,
+    nonlinearity,
     _get_selected_flags,
 )
 
@@ -109,6 +110,8 @@ class Encoder3D(nn.Cell):
             self.activation_fn = ops.relu
         elif self.config.vqvae.activation_fn == "elu":
             self.activation_fn = ops.elu
+        elif self.config.vqvae.activation_fn == "swish":
+            self.activation_fn = nonlinearity
         else:
             raise NotImplementedError
 

@@ -24,6 +24,10 @@ from mindspore import nn, ops
 from videogvt.models.vqvae.model_utils import GroupNormExtend, ResnetBlock3D
 
 
+class BlurPooling(nn.cell):
+    pass
+
+
 class SimpleDiscriminator(nn.Cell):
     """StyleGAN Discriminator."""
 
@@ -83,7 +87,7 @@ class ResBlockDown(nn.Cell):
         h = self.norm1(h)
         h = self.activation1(h)
 
-        h = ops.AvgPool3D(strides=(2, 2, 2))(h)
+        h = ops.AvgPool3D(strides=(2, 2, 2))(h) # TODO: Blur Pooling!!!
 
         h = self.conv2(h)
         h = self.norm2(h)
