@@ -64,6 +64,14 @@ class GroupNormExtend(nn.GroupNorm):
         return y.view(x_shape)
 
 
+class BlurPooling(nn.Cell):
+    """
+    Blur Pooling
+    """
+    def __init__(self):
+        super().__init__()
+
+
 class CausalConv3d(nn.Cell):
     """
     Temporal padding: Padding with the first frame, by repeating K_t-1 times.
@@ -193,14 +201,14 @@ class CausalConv3dZeroPad(nn.Cell):
         return self.conv(x)
 
 
-def Normalize(in_channels, num_groups=32, extend=False):
+def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
     if extend:
         return GroupNormExtend(
-            num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True
+            num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
         )
     else:
         return nn.GroupNorm(
-            num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True
+            num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
         )
 
 
@@ -495,18 +503,18 @@ class ResnetBlock3D(nn.Cell):
 
         # FIXME: GroupNorm precision mismatch with PT.
         self.norm1 = Normalize(in_channels, extend=True)
-        self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1)
+        self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1, dtype=dtype)
         self.norm2 = Normalize(out_channels, extend=True)
         self.dropout = nn.Dropout(p=dropout)
-        self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1)
+        self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1, dtype=dtype)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
                 self.conv_shortcut = CausalConv3d(
-                    in_channels, out_channels, 3, padding=1
+                    in_channels, out_channels, 3, padding=1, dtype=dtype
                 )
             else:
                 self.nin_shortcut = CausalConv3d(
-                    in_channels, out_channels, 1, padding=0
+                    in_channels, out_channels, 1, padding=0, dtype=dtype
                 )
 
     def construct(self, x):

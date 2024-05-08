@@ -26,7 +26,7 @@ class VQVAE(nn.Cell):
             h_dim, embedding_dim, kernel_size=1, stride=1
         )
         # pass continuous latent vector through discretization bottleneck
-        self.vector_quantization = VQ(n_embeddings, embedding_dim, beta)
+        self.quantizer = VQ(n_embeddings, embedding_dim, beta)
         # decode the discrete latent representation
         self.decoder = Decoder(embedding_dim, h_dim, n_res_layers, res_h_dim)
 
@@ -40,7 +40,7 @@ class VQVAE(nn.Cell):
         z_e = self.encoder(x)
 
         z_e = self.pre_quantization_conv(z_e)
-        embedding_loss, z_q, perplexity, _, _ = self.vector_quantization(z_e)
+        embedding_loss, z_q, perplexity, _, _ = self.quantizer(z_e)
 
         x_hat = self.decoder(z_q)
 
@@ -62,31 +62,33 @@ class VQVAE3D(nn.Cell):
         is_training=False,
     ):
         super(VQVAE3D, self).__init__()
+        self.config = config
+
         # encode image into continuous latent space
         self.encoder = Encoder3D(config)
         # decode the discrete latent representation
         self.decoder = Decoder3D(config)
 
         embedding_dim = config.vqvae.embedding_dim
-        n_embeddings = config.vqvae.codebook_size
         h_dim = config.vqvae.filters
         m_dim = config.vqvae.middle_channles
         beta = config.vqvae.commitment_cost
-        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1)
+        self.codebook_size = config.vqvae.codebook_size
+        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1, dtype=ms.float16)
         # pass continuous latent vector through discretization bottleneck
         if lookup_free_quantization:
-            self.vector_quantization = LFQ(
+            self.quantizer = LFQ(
                 dim=m_dim,
-                codebook_size=n_embeddings,
+                codebook_size=self.codebook_size,
                 return_loss_breakdown=False,
                 is_training=is_training,
                 # **lfq_kwargs
             )
         else:
-            self.vector_quantization = VQ(n_embeddings, embedding_dim, beta)
+            self.quantizer = VQ(self.codebook_size, embedding_dim, beta)
 
         if save_img_embedding_map:
-            self.img_to_embedding_map = {i: [] for i in range(n_embeddings)}
+            self.img_to_embedding_map = {i: [] for i in range(self.codebook_size)}
         else:
             self.img_to_embedding_map = None
 
@@ -95,7 +97,9 @@ class VQVAE3D(nn.Cell):
         z_e = self.encoder(x)
 
         z_e = self.pre_quantization_conv(z_e)
-        z_q, aux_loss = self.vector_quantization(z_e)
+        z_e = z_e.astype(ms.float32)
+        z_q, aux_loss = self.quantizer(z_e)
+        z_q = z_q.astype(ms.float16)
         x_hat = self.decoder(z_q)
 
         return z_e, z_q, x_hat, aux_loss
