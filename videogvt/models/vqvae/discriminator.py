@@ -24,8 +24,8 @@ from mindspore import nn, ops
 from videogvt.models.vqvae.model_utils import GroupNormExtend, ResnetBlock3D
 
 
-class BlurPooling(nn.cell):
-    pass
+# class BlurPooling(nn.Cell):
+#     pass
 
 
 class SimpleDiscriminator(nn.Cell):
