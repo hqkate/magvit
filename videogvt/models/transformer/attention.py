@@ -139,7 +139,7 @@ class CrossAttention(nn.Cell):
         self.to_v = nn.Dense(context_dim, inner_dim, has_bias=False).to_float(dtype)
         self.to_out = nn.SequentialCell(
             nn.Dense(inner_dim, query_dim).to_float(dtype),
-            nn.Dropout(p=1-dropout),
+            nn.Dropout(p=1 - dropout),
         )
 
         self.enable_flash_attention = (
