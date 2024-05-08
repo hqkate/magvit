@@ -21,28 +21,7 @@ import ml_collections
 import mindspore as ms
 from mindspore import nn, ops
 
-from videogvt.models.vqvae.model_utils import GroupNormExtend, ResnetBlock3D
-
-
-# class BlurPooling(nn.Cell):
-#     pass
-
-
-class SimpleDiscriminator(nn.Cell):
-    """StyleGAN Discriminator."""
-
-    def __init__(
-        self, config: ml_collections.ConfigDict, height: int, width: int, depth: int
-    ):
-        super().__init__()
-        self.config = config
-        self.in_channles = 3
-        self.input_size = self.config.image_size
-        self.filters = self.config.discriminator.filters
-        self.channel_multipliers = self.config.discriminator.channel_multipliers
-
-    def construct(self, x):
-        return ms.Tensor([[0.2808029]])
+from videogvt.models.vqvae.model_utils import GroupNormExtend, Avgpool3d
 
 
 class ResBlockDown(nn.Cell):
@@ -63,14 +42,14 @@ class ResBlockDown(nn.Cell):
             dtype
         )
         self.norm1 = GroupNormExtend(
-            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True
+            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
         )
         self.activation1 = nn.LeakyReLU()
         self.conv2 = nn.Conv3d(
             self.out_channels, self.out_channels, (3, 3, 3)
         ).to_float(dtype)
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True
+            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
         )
         self.activation2 = nn.LeakyReLU()
         # self.avgpool = nn.AvgPool3d(stride=(2, 2, 2))
@@ -87,13 +66,15 @@ class ResBlockDown(nn.Cell):
         h = self.norm1(h)
         h = self.activation1(h)
 
-        h = ops.AvgPool3D(strides=(2, 2, 2))(h) # TODO: Blur Pooling!!!
+        # h = ops.AvgPool3D(strides=(2, 2, 2))(h)
+        h = Avgpool3d(h)
 
         h = self.conv2(h)
         h = self.norm2(h)
         h = self.activation2(h)
 
-        x = ops.AvgPool3D(strides=(2, 2, 2))(x)
+        # x = ops.AvgPool3D(strides=(2, 2, 2))(x)
+        x = Avgpool3d(x)
         x = self.conv_shortcut(x)
 
         out = (x + h) / ops.sqrt(ms.Tensor(2, ms.float32))
@@ -134,11 +115,11 @@ class StyleGANDiscriminator(nn.Cell):
             else:
                 dim_in = self.filters * self.channel_multipliers[i - 1]
 
-            self.resnet_stack.append(ResBlockDown(dim_in, filters))
+            self.resnet_stack.append(ResBlockDown(dim_in, filters, dtype=ms.float16))
 
         dim_out = self.filters * self.channel_multipliers[-1]
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True
+            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True, dtype=ms.float16
         )
         self.conv_out = nn.Conv3d(dim_out, dim_out, (3, 3, 3)).to_float(dtype)
         # self.activation2 = nn.LeakyReLU()

@@ -212,6 +212,19 @@ def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
         )
 
 
+def Avgpool3d(x):
+    # ops.AvgPool3D(strides=(2, 2, 2))
+    b, c, h, w, d = x.shape
+    x = x.reshape(b*c, h, w, d)
+    x = ops.AvgPool(kernel_size=1, strides=2)(x)
+    x = ops.permute(x, (0, 2, 3, 1))
+    x = ops.AvgPool(kernel_size=1, strides=(1, 2))(x)
+    x = ops.permute(x, (0, 3, 1, 2))
+    h, w, d = x.shape[-3:]
+    x = x.reshape(b, c, h, w, d)
+    return x
+
+
 class Upsample3D(nn.Cell):
     def __init__(self, in_channels, with_conv, scale_factor, dtype=ms.float32):
         super().__init__()
