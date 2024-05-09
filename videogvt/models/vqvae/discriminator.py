@@ -115,14 +115,14 @@ class ResBlockDown(nn.Cell):
             dtype
         )
         self.norm1 = GroupNormExtend(
-            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True
+            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
         )
         self.activation1 = nn.LeakyReLU()
         self.conv2 = nn.Conv3d(
             self.out_channels, self.out_channels, (3, 3, 3)
         ).to_float(dtype)
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True
+            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
         )
         self.activation2 = nn.LeakyReLU()
         # self.dropout = nn.Dropout(p=dropout)
@@ -143,12 +143,14 @@ class ResBlockDown(nn.Cell):
         # h = ops.AvgPool3D(strides=(2, 2, 2))(h)
         h = self.blurpool1(h)
 
+
         h = self.conv2(h)
         h = self.norm2(h)
         h = self.activation2(h)
 
         # x = ops.AvgPool3D(strides=(2, 2, 2))(x)
         x = self.blurpool2(x)
+
         x = self.conv_shortcut(x)
 
         out = (x + h) / ops.sqrt(ms.Tensor(2, ms.float32))
@@ -189,11 +191,11 @@ class StyleGANDiscriminator(nn.Cell):
             else:
                 dim_in = self.filters * self.channel_multipliers[i - 1]
 
-            self.resnet_stack.append(ResBlockDown(dim_in, filters))
+            self.resnet_stack.append(ResBlockDown(dim_in, filters, dtype=ms.float16))
 
         dim_out = self.filters * self.channel_multipliers[-1]
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True
+            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True, dtype=ms.float16
         )
         self.conv_out = nn.Conv3d(dim_out, dim_out, (3, 3, 3)).to_float(dtype)
         # self.activation2 = nn.LeakyReLU()
@@ -204,8 +206,9 @@ class StyleGANDiscriminator(nn.Cell):
             * max(1, width // sampling_rate)
             * max(1, depth // sampling_rate)
         )
-        self.linear1 = nn.Dense(dim_dense, 512)
-        self.linear2 = nn.Dense(512, 1)
+
+        self.linear1 = nn.Dense(dim_dense, 512, dtype=ms.float16)
+        self.linear2 = nn.Dense(512, 1, dtype=ms.float16)
 
     def construct(self, x):
         # x = self.norm(x)

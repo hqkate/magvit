@@ -33,6 +33,7 @@ class GeneratorWithLoss(nn.Cell):
         self.vqvae = vqvae
         # TODO: set dtype for LPIPS ?
         self.perceptual_loss = LPIPS()  # freeze params inside
+        self.perceptual_loss.to_float(dtype)
 
         self.l1 = nn.L1Loss(reduction="none")
 
@@ -47,6 +48,8 @@ class GeneratorWithLoss(nn.Cell):
             self.has_disc = True
         else:
             self.has_disc = False
+
+        self.dtype = dtype
 
     def loss_function(
         self,
@@ -73,7 +76,7 @@ class GeneratorWithLoss(nn.Cell):
         loss += rec_loss.mean()
 
         # 2.4 discriminator loss if enabled
-        g_loss = ms.Tensor(0.0, dtype=ms.float32)
+        g_loss = ms.Tensor(0.0, dtype=self.dtype)
         if self.has_disc:
             # calc gan loss
             if cond is None:

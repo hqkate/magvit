@@ -99,7 +99,7 @@ def main(args):
 
     if use_discriminator:
         # disc = instantiate_from_config(model_config.discriminator)
-        disc = StyleGANDiscriminator(model_config, 128, 128, 16)
+        disc = StyleGANDiscriminator(model_config, 128, 128, 16, dtype=ms.float16)
     else:
         disc = None
 
@@ -118,7 +118,7 @@ def main(args):
     # 3. build net with loss (core)
     # G with loss
     vqvae_with_loss = GeneratorWithLoss(
-        vqvae, discriminator=disc, **model_config.lr_configs
+        vqvae, discriminator=disc, **model_config.lr_configs, dtype=ms.float16
     )
     disc_start = model_config.lr_configs.disc_start
 

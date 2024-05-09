@@ -9,7 +9,6 @@ from videogvt.models.vqvae.model_utils import (
     Downsample,
     CausalConv3d,
     GroupNormExtend,
-    nonlinearity,
     _get_selected_flags,
 )
 
@@ -110,17 +109,15 @@ class Encoder3D(nn.Cell):
             self.activation_fn = ops.relu
         elif self.config.vqvae.activation_fn == "elu":
             self.activation_fn = ops.elu
-        elif self.config.vqvae.activation_fn == "swish":
-            self.activation_fn = nonlinearity
         else:
             raise NotImplementedError
 
         dim_gp = self.filters * self.channel_multipliers[-1]
         self.conv_in = CausalConv3d(
-            self.in_channels, self.init_dim, self.input_conv_kernel_size, padding=1
+            self.in_channels, self.init_dim, self.input_conv_kernel_size, padding=1, dtype=ms.float16
         )
         self.conv_out = CausalConv3d(
-            dim_gp, self.out_channels, self.output_conv_kernel_size, padding=0
+            dim_gp, self.out_channels, self.output_conv_kernel_size, padding=0, dtype=ms.float16
         )
         self.residual_stack = nn.SequentialCell()
         self.norm = GroupNormExtend(dim_gp, dim_gp)
@@ -149,6 +146,7 @@ class Encoder3D(nn.Cell):
                         kernel_size=(3, 3, 3),
                         stride=t_stride,
                         padding=1,
+                        dtype=ms.float16,
                     )
                 )
 
@@ -193,12 +191,12 @@ class Encoder_v2(nn.Cell):
             raise NotImplementedError
 
         self.conv_in = CausalConv3d(
-            self.in_channels, self.init_dim, self.input_conv_kernel_size
+            self.in_channels, self.init_dim, self.input_conv_kernel_size, dtype=ms.float16
         )
         self.conv_in_first_frame = nn.Identity()
         self.conv_out_first_frame = nn.Identity()
         self.conv_out = CausalConv3d(
-            self.init_dim, self.in_channels, self.output_conv_kernel_size
+            self.init_dim, self.in_channels, self.output_conv_kernel_size, dtype=ms.float16
         )
 
         dim = self.init_dim

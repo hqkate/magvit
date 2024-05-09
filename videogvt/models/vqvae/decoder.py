@@ -99,12 +99,12 @@ class Decoder3D(nn.Cell):
 
         init_dim = self.filters * self.channel_multipliers[-1]
         self.conv_in = CausalConv3d(
-            self.in_channels, init_dim, self.input_conv_kernel_size, padding=1
+            self.in_channels, init_dim, self.input_conv_kernel_size, padding=1, dtype=ms.float16
         )
         self.conv_out = CausalConv3d(
-            self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1
+            self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=ms.float16
         )
-        self.norm = GroupNormExtend(self.filters, self.filters)
+        self.norm = GroupNormExtend(self.filters, self.filters, dtype=ms.float16)
         self.residual_stack = nn.SequentialCell()
 
         num_blocks = len(self.channel_multipliers)
@@ -117,10 +117,10 @@ class Decoder3D(nn.Cell):
             else:
                 dim_in = self.filters * self.channel_multipliers[i + 1]
 
-            self.residual_stack.append(ResnetBlock3D(dim_in, filters))
+            self.residual_stack.append(ResnetBlock3D(dim_in, filters, dtype=ms.float16))
 
             for _ in range(self.num_res_blocks - 1):
-                self.residual_stack.append(ResnetBlock3D(filters, filters))
+                self.residual_stack.append(ResnetBlock3D(filters, filters, dtype=ms.float16))
 
             if i > 0:
                 if self.temporal_downsample[i - 1]:
@@ -135,21 +135,22 @@ class Decoder3D(nn.Cell):
                                 filters,
                                 kernel_size=(3, 3, 3),
                                 stride=(t_stride, 2, 2),
-                            )
+                                dtype=ms.float16,
+                            ).to_float(ms.float16)
                         )
                     elif self.upsample == "nearest+conv":
                         scales = (float(t_stride), 2.0, 2.0)
                         self.residual_stack.append(
-                            Upsample3D(filters, self.temporal_downsample[i - 1], scales)
+                            Upsample3D(filters, self.temporal_downsample[i - 1], scales, dtype=ms.float16)
                         )
                         self.residual_stack.append(
-                            nn.Conv3d(filters, filters, kernel_size=(3, 3, 3))
+                            nn.Conv3d(filters, filters, kernel_size=(3, 3, 3), dtype=ms.float16)
                         )
                     else:
                         raise NotImplementedError(f"Unknown upsampler: {self.upsample}")
 
                 # Adaptive GroupNorm
-                self.residual_stack.append(GroupNormExtend(filters, filters))
+                self.residual_stack.append(GroupNormExtend(filters, filters, dtype=ms.float16))
 
     def construct(self, x):
         x = self.conv_in(x)

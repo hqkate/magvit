@@ -106,10 +106,10 @@ class LFQ(nn.Cell):
 
         has_projections = dim != codebook_dims
         self.project_in = (
-            nn.Dense(dim, codebook_dims) if has_projections else nn.Identity()
+            nn.Dense(dim, codebook_dims, dtype=ms.float16) if has_projections else nn.Identity()
         )
         self.project_out = (
-            nn.Dense(codebook_dims, dim) if has_projections else nn.Identity()
+            nn.Dense(codebook_dims, dim, dtype=ms.float16) if has_projections else nn.Identity()
         )
         self.has_projections = has_projections
 
@@ -151,7 +151,7 @@ class LFQ(nn.Cell):
         # codes
 
         all_codes = ops.arange(codebook_size)
-        bits = ((all_codes[..., None] & self.mask) != 0).float()
+        bits = ((all_codes[..., None] & self.mask) != 0).float().astype(ms.float16)
         codebook = self.bits_to_codes(bits)
 
         # self.register_buffer('codebook', codebook, persistent = False)
