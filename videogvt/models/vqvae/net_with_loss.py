@@ -131,7 +131,7 @@ class GeneratorWithLoss(nn.Cell):
         # 2. compuate loss
         loss = self.loss_function(x, recons, aux_loss, cond)
 
-        return loss.astype(self.dtype)
+        return loss
 
 
 class DiscriminatorWithLoss(nn.Cell):
