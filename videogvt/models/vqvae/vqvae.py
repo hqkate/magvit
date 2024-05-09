@@ -97,9 +97,7 @@ class VQVAE3D(nn.Cell):
         z_e = self.encoder(x)
 
         z_e = self.pre_quantization_conv(z_e)
-        z_e = z_e.astype(ms.float32)
         z_q, aux_loss = self.quantizer(z_e)
-        z_q = z_q.astype(ms.float16)
         x_hat = self.decoder(z_q)
 
         return z_e, z_q, x_hat, aux_loss
