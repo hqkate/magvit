@@ -17,11 +17,84 @@
 from typing import Any
 import math
 import ml_collections
-
+import numpy as np
 import mindspore as ms
 from mindspore import nn, ops
 
-from videogvt.models.vqvae.model_utils import GroupNormExtend, Avgpool3d
+from videogvt.models.vqvae.model_utils import GroupNormExtend, ResnetBlock3D
+
+
+def get_pad_layer(pad_type):
+    if pad_type in ["refl", "reflect"]:
+        PadLayer = nn.ReplicationPad3d
+    elif pad_type in ["repl", "replicate"]:
+        PadLayer = nn.ReplicationPad3d
+    elif pad_type == "zero":
+        PadLayer = nn.ZeroPad3d
+    else:
+        print("Pad type [%s] not recognized" % pad_type)
+    return PadLayer
+
+
+class BlurPool3d(nn.Cell):
+    def __init__(self, channels, pad_type="reflect", filt_size=4, stride=2, pad_off=0):
+        super(BlurPool3d, self).__init__()
+        self.filt_size = filt_size
+        self.pad_off = pad_off
+        self.pad_sizes = [
+            int(1.0 * (filt_size - 1) / 2),
+            int(np.ceil(1.0 * (filt_size - 1) / 2)),
+            int(1.0 * (filt_size - 1) / 2),
+            int(np.ceil(1.0 * (filt_size - 1) / 2)),
+            int(1.0 * (filt_size - 1) / 2),
+            int(np.ceil(1.0 * (filt_size - 1) / 2)),
+        ]
+        self.pad_sizes = tuple([pad_size + pad_off for pad_size in self.pad_sizes])
+        self.stride = stride
+        self.off = int((self.stride - 1) / 2.0)
+        self.channels = channels
+
+        if self.filt_size == 1:
+            a = np.array(
+                [
+                    1.0,
+                ]
+            )
+        elif self.filt_size == 2:
+            a = np.array([1.0, 1.0])
+        elif self.filt_size == 3:
+            a = np.array([1.0, 2.0, 1.0])
+        elif self.filt_size == 4:
+            a = np.array([1.0, 3.0, 3.0, 1.0])
+        elif self.filt_size == 5:
+            a = np.array([1.0, 4.0, 6.0, 4.0, 1.0])
+        elif self.filt_size == 6:
+            a = np.array([1.0, 5.0, 10.0, 10.0, 5.0, 1.0])
+        elif self.filt_size == 7:
+            a = np.array([1.0, 6.0, 15.0, 20.0, 15.0, 6.0, 1.0])
+
+        filt = ms.Tensor(
+            np.repeat(
+                np.expand_dims(a[:, None] * a[None, :], 0), self.filt_size, axis=0
+            ),
+            ms.float32,
+        )
+        filt = filt / ops.sum(filt)
+        filt = filt.unsqueeze(0).unsqueeze(0)
+        filt = filt.repeat(self.channels, 0).repeat(self.channels, 1)
+        self.filt = ms.Parameter(filt, requires_grad=False)
+        self.pad = get_pad_layer(pad_type)(self.pad_sizes)
+
+    def construct(self, inp):
+        if self.filt_size == 1:
+            if self.pad_off == 0:
+                return inp[:, :, :: self.stride, :: self.stride, :: self.stride]
+            else:
+                return self.pad(inp)[
+                    :, :, :: self.stride, :: self.stride, :: self.stride
+                ]
+        else:
+            return ops.conv3d(self.pad(inp), self.filt, stride=self.stride, groups=1)
 
 
 class ResBlockDown(nn.Cell):
@@ -52,13 +125,14 @@ class ResBlockDown(nn.Cell):
             num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
         )
         self.activation2 = nn.LeakyReLU()
-        # self.avgpool = nn.AvgPool3d(stride=(2, 2, 2))
         # self.dropout = nn.Dropout(p=dropout)
 
-        # self.avgpool_shortcut = nn.AvgPool3d(stride=(2, 2, 2))
         self.conv_shortcut = nn.Conv3d(
             self.in_channels, self.out_channels, (1, 1, 1), has_bias=False
         ).to_float(dtype)
+
+        self.blurpool1 = BlurPool3d(self.out_channels)
+        self.blurpool2 = BlurPool3d(self.in_channels)
 
     def construct(self, x):
         h = x
@@ -67,14 +141,16 @@ class ResBlockDown(nn.Cell):
         h = self.activation1(h)
 
         # h = ops.AvgPool3D(strides=(2, 2, 2))(h)
-        h = Avgpool3d(h)
+        h = self.blurpool1(h)
+
 
         h = self.conv2(h)
         h = self.norm2(h)
         h = self.activation2(h)
 
         # x = ops.AvgPool3D(strides=(2, 2, 2))(x)
-        x = Avgpool3d(x)
+        x = self.blurpool2(x)
+
         x = self.conv_shortcut(x)
 
         out = (x + h) / ops.sqrt(ms.Tensor(2, ms.float32))
@@ -130,8 +206,8 @@ class StyleGANDiscriminator(nn.Cell):
             * max(1, width // sampling_rate)
             * max(1, depth // sampling_rate)
         )
+
         self.linear1 = nn.Dense(dim_dense, 512, dtype=ms.float16)
-        # self.activation3 = nn.LeakyReLU()
         self.linear2 = nn.Dense(512, 1, dtype=ms.float16)
 
     def construct(self, x):
