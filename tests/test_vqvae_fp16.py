@@ -18,7 +18,7 @@ context.set_context(
 
 config = get_config("B")
 model = VQVAE3D(config, lookup_free_quantization=True, is_training=True)
-discriminator = StyleGANDiscriminator(config, 128, 128, 16)
+discriminator = StyleGANDiscriminator(config, 128, 128, 16, dtype=ms.float16)
 
 x = ms.Tensor(np.random.rand(2, 3, 16, 128, 128), ms.float16)
 

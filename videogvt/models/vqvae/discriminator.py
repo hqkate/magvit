@@ -130,9 +130,9 @@ class StyleGANDiscriminator(nn.Cell):
             * max(1, width // sampling_rate)
             * max(1, depth // sampling_rate)
         )
-        self.linear1 = nn.Dense(dim_dense, 512)
+        self.linear1 = nn.Dense(dim_dense, 512, dtype=ms.float16)
         # self.activation3 = nn.LeakyReLU()
-        self.linear2 = nn.Dense(512, 1)
+        self.linear2 = nn.Dense(512, 1, dtype=ms.float16)
 
     def construct(self, x):
         # x = self.norm(x)
