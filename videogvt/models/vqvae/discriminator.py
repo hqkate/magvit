@@ -191,11 +191,11 @@ class StyleGANDiscriminator(nn.Cell):
             else:
                 dim_in = self.filters * self.channel_multipliers[i - 1]
 
-            self.resnet_stack.append(ResBlockDown(dim_in, filters, dtype=ms.float16))
+            self.resnet_stack.append(ResBlockDown(dim_in, filters, dtype=dtype))
 
         dim_out = self.filters * self.channel_multipliers[-1]
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True, dtype=ms.float16
+            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True, dtype=dtype
         )
         self.conv_out = nn.Conv3d(dim_out, dim_out, (3, 3, 3)).to_float(dtype)
         # self.activation2 = nn.LeakyReLU()
@@ -207,8 +207,8 @@ class StyleGANDiscriminator(nn.Cell):
             * max(1, depth // sampling_rate)
         )
 
-        self.linear1 = nn.Dense(dim_dense, 512, dtype=ms.float16)
-        self.linear2 = nn.Dense(512, 1, dtype=ms.float16)
+        self.linear1 = nn.Dense(dim_dense, 512, dtype=dtype)
+        self.linear2 = nn.Dense(512, 1, dtype=dtype)
 
     def construct(self, x):
         # x = self.norm(x)
