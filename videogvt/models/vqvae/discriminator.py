@@ -26,11 +26,11 @@ from videogvt.models.vqvae.model_utils import GroupNormExtend, ResnetBlock3D
 
 def get_pad_layer(pad_type):
     if pad_type in ["refl", "reflect"]:
-        PadLayer = nn.ReplicationPad3d
+        PadLayer = nn.ReflectionPad3d
     elif pad_type in ["repl", "replicate"]:
         PadLayer = nn.ReplicationPad3d
     elif pad_type == "zero":
-        PadLayer = nn.ZeroPad3d
+        PadLayer = nn.ConstantPad3d
     else:
         print("Pad type [%s] not recognized" % pad_type)
     return PadLayer
@@ -83,7 +83,7 @@ class BlurPool3d(nn.Cell):
         filt = filt.unsqueeze(0).unsqueeze(0)
         filt = filt.repeat(self.channels, 0).repeat(self.channels, 1)
         self.filt = ms.Parameter(filt, requires_grad=False)
-        self.pad = get_pad_layer(pad_type)(self.pad_sizes)
+        self.pad = get_pad_layer(pad_type)(self.pad_sizes) if pad_type != "zero" else get_pad_layer(pad_type)(self.pad_sizes, 0)
 
     def construct(self, inp):
         if self.filt_size == 1:
