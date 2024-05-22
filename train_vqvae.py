@@ -207,6 +207,7 @@ def main(args):
         group_strategy=args.group_strategy,
         weight_decay=args.weight_decay,
         lr=lr,
+        eps=1e-03,
     )
     loss_scaler_vqvae = create_loss_scaler(
         args.loss_scaler_type,
