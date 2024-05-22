@@ -60,21 +60,22 @@ class VQVAE3D(nn.Cell):
         save_img_embedding_map=False,
         lookup_free_quantization=False,
         is_training=False,
+        dtype=ms.float32,
     ):
         super(VQVAE3D, self).__init__()
         self.config = config
 
         # encode image into continuous latent space
-        self.encoder = Encoder3D(config)
+        self.encoder = Encoder3D(config, dtype=dtype)
         # decode the discrete latent representation
-        self.decoder = Decoder3D(config)
+        self.decoder = Decoder3D(config, dtype=dtype)
 
         embedding_dim = config.vqvae.embedding_dim
         h_dim = config.vqvae.filters
         m_dim = config.vqvae.middle_channles
         beta = config.vqvae.commitment_cost
         self.codebook_size = config.vqvae.codebook_size
-        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1, dtype=ms.float16)
+        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1, dtype=dtype)
         # pass continuous latent vector through discretization bottleneck
         if lookup_free_quantization:
             self.quantizer = LFQ(

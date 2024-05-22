@@ -81,7 +81,7 @@ class Encoder3D(nn.Cell):
 
     """
 
-    def __init__(self, config):
+    def __init__(self, config, dtype=ms.float32):
         super(Encoder3D, self).__init__()
 
         self.config = config
@@ -114,10 +114,10 @@ class Encoder3D(nn.Cell):
 
         dim_gp = self.filters * self.channel_multipliers[-1]
         self.conv_in = CausalConv3d(
-            self.in_channels, self.init_dim, self.input_conv_kernel_size, padding=1, dtype=ms.float16
+            self.in_channels, self.init_dim, self.input_conv_kernel_size, padding=1, dtype=dtype
         )
         self.conv_out = CausalConv3d(
-            dim_gp, self.out_channels, self.output_conv_kernel_size, padding=0, dtype=ms.float16
+            dim_gp, self.out_channels, self.output_conv_kernel_size, padding=0, dtype=dtype
         )
         self.residual_stack = nn.SequentialCell()
         self.norm = GroupNormExtend(dim_gp, dim_gp)
@@ -146,7 +146,7 @@ class Encoder3D(nn.Cell):
                         kernel_size=(3, 3, 3),
                         stride=t_stride,
                         padding=1,
-                        dtype=ms.float16,
+                        dtype=dtype,
                     )
                 )
 
@@ -191,12 +191,12 @@ class Encoder_v2(nn.Cell):
             raise NotImplementedError
 
         self.conv_in = CausalConv3d(
-            self.in_channels, self.init_dim, self.input_conv_kernel_size, dtype=ms.float16
+            self.in_channels, self.init_dim, self.input_conv_kernel_size
         )
         self.conv_in_first_frame = nn.Identity()
         self.conv_out_first_frame = nn.Identity()
         self.conv_out = CausalConv3d(
-            self.init_dim, self.in_channels, self.output_conv_kernel_size, dtype=ms.float16
+            self.init_dim, self.in_channels, self.output_conv_kernel_size
         )
 
         dim = self.init_dim
