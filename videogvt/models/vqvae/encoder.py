@@ -113,9 +113,7 @@ class Encoder3D(nn.Cell):
             raise NotImplementedError
 
         dim_gp = self.filters * self.channel_multipliers[-1]
-        self.conv_in = CausalConv3d(
-            self.in_channels, self.init_dim, self.input_conv_kernel_size, padding=1, dtype=dtype
-        )
+
         self.conv_out = CausalConv3d(
             dim_gp, self.out_channels, self.output_conv_kernel_size, padding=0, dtype=dtype
         )
@@ -151,7 +149,7 @@ class Encoder3D(nn.Cell):
                 )
 
     def construct(self, x):
-        x = self.conv_in(x)
+        # x = self.conv_in(x)
         x = self.residual_stack(x)
         x = self.norm(x)
         x = self.activation_fn(x)

@@ -29,6 +29,12 @@ def get_norm_layer(norm_type, dtype):
     return norm_fn
 
 
+def pad_at_dim(t, pad, dim=-1, value=0.0):
+    dims_from_right = (-dim - 1) if dim < 0 else (t.ndim - dim - 1)
+    zeros = (0, 0) * dims_from_right
+    return ops.pad(t, zeros + pad, value=value)
+
+
 def divisible_by(num, den):
     return (num % den) == 0
 
@@ -210,6 +216,20 @@ def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
         return nn.GroupNorm(
             num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
         )
+
+
+def SameConv2d(dim_in, dim_out, kernel_size):
+    kernel_size = cast_tuple(kernel_size, 2)
+    kernel_size_extend = (
+        kernel_size[0],
+        kernel_size[0],
+        kernel_size[1],
+        kernel_size[1],
+    )
+    padding = tuple([k // 2 for k in kernel_size_extend])
+    return nn.Conv2d(
+        dim_in, dim_out, kernel_size=kernel_size, padding=padding, pad_mode="pad"
+    )
 
 
 def Avgpool3d(x):

@@ -74,7 +74,6 @@ class Decoder3D(nn.Cell):
         self.in_channels = 18
         self.out_channels = 3
         self.input_conv_kernel_size = (3, 3, 3)  # (7, 7, 7)
-        self.output_conv_kernel_size = (1, 1, 1)
 
         self.mode = mode
         self.output_dim = output_dim
@@ -101,9 +100,9 @@ class Decoder3D(nn.Cell):
         self.conv_in = CausalConv3d(
             self.in_channels, init_dim, self.input_conv_kernel_size, padding=1, dtype=dtype
         )
-        self.conv_out = CausalConv3d(
-            self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=dtype
-        )
+        # self.conv_out = CausalConv3d(
+        #     self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=dtype
+        # )
         self.norm = GroupNormExtend(self.filters, self.filters, dtype=dtype)
         self.residual_stack = nn.SequentialCell()
 
@@ -153,7 +152,7 @@ class Decoder3D(nn.Cell):
                 self.residual_stack.append(GroupNormExtend(filters, filters, dtype=dtype))
 
     def construct(self, x):
-        x = self.conv_in(x)
+        # x = self.conv_in(x)
         x = self.residual_stack(x)
         x = self.norm(x)
         x = self.activation_fn(x)
