@@ -152,11 +152,11 @@ class Decoder3D(nn.Cell):
                 self.residual_stack.append(GroupNormExtend(filters, filters, dtype=dtype))
 
     def construct(self, x):
-        # x = self.conv_in(x)
+        x = self.conv_in(x)
         x = self.residual_stack(x)
         x = self.norm(x)
         x = self.activation_fn(x)
-        x = self.conv_out(x)
+        # x = self.conv_out(x)
         return x
 
 
