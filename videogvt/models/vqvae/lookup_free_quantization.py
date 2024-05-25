@@ -29,17 +29,6 @@ import mindspore as ms
 from mindspore import nn, ops
 
 
-# constants
-
-# Return = namedtuple("Return", ["quantized", "indices", "entropy_aux_loss"])
-
-# LossBreakdown = namedtuple(
-#     "LossBreakdown", ["per_sample_entropy", "batch_entropy", "commitment"]
-# )
-
-# helper functions
-
-
 def exists(v):
     return v is not None
 
@@ -49,15 +38,6 @@ def default(*args):
         if exists(arg):
             return arg() if callable(arg) else arg
     return None
-
-
-# def pack_one(t, pattern):
-#     return pack([t], pattern)
-
-# def unpack_one(t, ps, pattern):
-#     return unpack(t, ps, pattern)[0]
-
-# entropy
 
 
 def log(t, eps=1e-5):
@@ -145,8 +125,6 @@ class LFQ(nn.Cell):
 
         # for no auxiliary loss, during inference
 
-        # self.register_buffer('mask', 2 ** ops.arange(codebook_dim - 1, -1, -1))
-        # self.register_buffer('zero', ops.Tensor(0.), persistent = False)
         self.mask = ops.pow(2, ops.arange(codebook_dim - 1, -1, -1))
 
         # codes
@@ -155,7 +133,6 @@ class LFQ(nn.Cell):
         bits = ((all_codes[..., None] & self.mask) != 0).float().astype(dtype)
         codebook = self.bits_to_codes(bits)
 
-        # self.register_buffer('codebook', codebook, persistent = False)
         # self.codebook = ms.Parameter(codebook, requires_grad=False)
         self.codebook = codebook
 
@@ -338,23 +315,6 @@ class LFQ(nn.Cell):
         # x = rearrange(x, 'b ... d -> b d ...')
         x = x.reshape(*x_shape)
         x = x.permute(0, 4, 1, 2, 3)
-
-        # indices = unpack_one(indices, ps, 'b * c')
-        # indices_shape = indices.shape
-        # new_shape = (
-        #     indices_shape[0],
-        #     x_shape[1],
-        #     x_shape[2],
-        #     x_shape[3],
-        #     indices_shape[-1],
-        # )
-        # indices = indices.reshape(new_shape)
-
-        # whether to remove single codebook dim
-
-        # if not self.keep_num_codebooks_dim:
-        #     # indices = rearrange(indices, '... 1 -> ...')
-        #     indices = indices.unsqueeze(-1)
 
         # complete aux loss
 

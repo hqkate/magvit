@@ -33,12 +33,13 @@ from mindone.trainers.callback import (
 from mindone.trainers.checkpoint import CheckpointManager, resume_train_network
 from mindone.trainers.ema import EMA
 from mindone.trainers.lr_schedule import create_scheduler
-from mindone.trainers.optim import create_optimizer
+# from mindone.trainers.optim import create_optimizer
 from mindone.trainers.train_step import TrainOneStepWrapper
 from mindone.utils.amp import auto_mixed_precision
 from mindone.utils.config import instantiate_from_config
 from mindone.utils.logger import set_logger
 from mindone.utils.params import count_params
+from mindcv.optim import create_optimizer
 
 os.environ["HCCL_CONNECT_TIMEOUT"] = "6000"
 os.environ["MS_ASCEND_CHECK_OVERFLOW_MODE"] = "INFNAN_MODE"
@@ -66,11 +67,13 @@ def create_loss_scaler(
 def main(args):
     # 1. init
     # ascend_config={"precision_mode": "allow_fp32_to_fp16"}
+    ascend_config={"precision_mode": "allow_mix_precision_bf16"}
     device_id, rank_id, device_num = init_train_env(
         args.mode,
         device_target=args.device_target,
         seed=args.seed,
         distributed=args.use_parallel,
+        ascend_config=ascend_config,
     )
     set_logger(
         name="",
@@ -81,10 +84,9 @@ def main(args):
 
     # 2. build models
     #  vqvae (G)
-    # model_config = OmegaConf.load(args.model_config)
-    # ae = instantiate_from_config(model_config.generator)
     model_config = get_config("B")
-    vqvae = VQVAE3D(model_config, lookup_free_quantization=True, is_training=True)
+    dtype = {"fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
+    vqvae = VQVAE3D(model_config, lookup_free_quantization=True, is_training=True, video_contains_first_frame=True, separate_first_frame_encoding=True, dtype=dtype)
     if args.pretrained is not None:
         logger.info(f"Loading vqvae from {args.pretrained}")
         ms.load_checkpoint(args.pretrained, vqvae, filter_prefix=None)
@@ -98,14 +100,15 @@ def main(args):
         logging.warning("use_discriminator is True but disc_weight is 0.")
 
     if use_discriminator:
-        # disc = instantiate_from_config(model_config.discriminator)
-        disc = StyleGANDiscriminator(model_config, 128, 128, 16, dtype=ms.float16)
+        crop_size = int(args.crop_size)
+        frame_size = int(args.num_frames)
+        disc = StyleGANDiscriminator(model_config, crop_size, crop_size, frame_size, dtype=dtype)
     else:
         disc = None
 
     # mixed precision
     # TODO: set softmax, sigmoid computed in FP32. manually set inside network since they are ops, instead of layers whose precision will be set by AMP level.
-    if args.dtype != "fp32":
+    if args.dtype not in ["fp32", "bf16"]:
         amp_level = "O2"
         dtype = {"fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
         vqvae = auto_mixed_precision(vqvae, amp_level, dtype)
@@ -118,7 +121,7 @@ def main(args):
     # 3. build net with loss (core)
     # G with loss
     vqvae_with_loss = GeneratorWithLoss(
-        vqvae, discriminator=disc, **model_config.lr_configs, dtype=ms.float16
+        vqvae, discriminator=disc, **model_config.lr_configs, dtype=dtype
     )
     disc_start = model_config.lr_configs.disc_start
 
@@ -200,14 +203,24 @@ def main(args):
         ]
     else:
         vqvae_params_to_update = vqvae_with_loss.vqvae.trainable_params()
+
+    # optim_vqvae = create_optimizer(
+    #     vqvae_params_to_update,
+    #     name=args.optim,
+    #     betas=args.betas,
+    #     group_strategy=args.group_strategy,
+    #     weight_decay=args.weight_decay,
+    #     lr=lr,
+    # )
+
     optim_vqvae = create_optimizer(
         vqvae_params_to_update,
-        name=args.optim,
-        betas=args.betas,
-        group_strategy=args.group_strategy,
+        opt=args.optim,
         weight_decay=args.weight_decay,
         lr=lr,
+        eps=1e-04,
     )
+
     loss_scaler_vqvae = create_loss_scaler(
         args.loss_scaler_type,
         args.init_loss_scale,
@@ -224,6 +237,7 @@ def main(args):
             group_strategy=args.group_strategy,
             weight_decay=args.weight_decay,
         )
+
         loss_scaler_disc = create_loss_scaler(
             args.loss_scaler_type,
             args.init_loss_scale,
@@ -235,7 +249,7 @@ def main(args):
         EMA(
             vqvae_with_loss.vqvae,
             ema_decay=args.ema_decay,
-        )
+        ).to_float(dtype)
         if args.use_ema
         else None
     )

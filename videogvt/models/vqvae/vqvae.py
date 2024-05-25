@@ -29,7 +29,7 @@ class VQVAE(nn.Cell):
         # encode image into continuous latent space
         self.encoder = Encoder(3, h_dim, n_res_layers, res_h_dim)
         self.pre_quantization_conv = nn.Conv2d(
-            h_dim, embedding_dim, kernel_size=1, stride=1
+            h_dim, embedding_dim, kernel_size=1, stride=1, has_bias=True
         )
         # pass continuous latent vector through discretization bottleneck
         self.quantizer = VQ(n_embeddings, embedding_dim, beta)
@@ -93,11 +93,11 @@ class VQVAE3D(nn.Cell):
 
         # encoder conv_in
         input_conv_kernel_size = (3, 3, 3)
-        self.conv_in = CausalConv3d(in_dim, h_dim, input_conv_kernel_size, padding=1)
+        self.conv_in = CausalConv3d(in_dim, h_dim, input_conv_kernel_size, padding=1, dtype=dtype)
 
         # decoder conv_out
         output_conv_kernel_size = (3, 3, 3)
-        self.conv_out = CausalConv3d(h_dim, in_dim, output_conv_kernel_size, padding=1)
+        self.conv_out = CausalConv3d(h_dim, in_dim, output_conv_kernel_size, padding=1, dtype=dtype)
 
         # whether to encode the first frame separately or not
 
@@ -107,10 +107,10 @@ class VQVAE3D(nn.Cell):
         if separate_first_frame_encoding:
             self.conv_in_first_frame = SameConv2d(
                 in_dim, h_dim, input_conv_kernel_size[-2:]
-            )
+            ).to_float(dtype)
             self.conv_out_first_frame = SameConv2d(
                 h_dim, in_dim, output_conv_kernel_size[-2:]
-            )
+            ).to_float(dtype)
 
         self.separate_first_frame_encoding = separate_first_frame_encoding
         self.encode_first_frame_separately = encode_first_frame_separately
@@ -119,7 +119,7 @@ class VQVAE3D(nn.Cell):
         self.time_downsample_factor = time_downsample_factor
         self.time_padding = time_downsample_factor - 1
 
-        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1, dtype=dtype)
+        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1, has_bias=True, dtype=dtype)
 
         # pass continuous latent vector through discretization bottleneck
         if lookup_free_quantization:

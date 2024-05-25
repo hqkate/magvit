@@ -31,8 +31,9 @@ def get_norm_layer(norm_type, dtype):
 
 def pad_at_dim(t, pad, dim=-1, value=0.0):
     dims_from_right = (-dim - 1) if dim < 0 else (t.ndim - dim - 1)
-    zeros = (0, 0) * dims_from_right
-    return ops.pad(t, zeros + pad, value=value)
+    zeros = [(0, 0)] * dims_from_right
+    pad_op = ops.Pad(tuple(zeros + [pad] + [(0, 0) * 2]))
+    return pad_op(t)
 
 
 def divisible_by(num, den):
@@ -70,14 +71,6 @@ class GroupNormExtend(nn.GroupNorm):
         return y.view(x_shape)
 
 
-class BlurPooling(nn.Cell):
-    """
-    Blur Pooling
-    """
-    def __init__(self):
-        super().__init__()
-
-
 class CausalConv3d(nn.Cell):
     """
     Temporal padding: Padding with the first frame, by repeating K_t-1 times.
@@ -111,73 +104,35 @@ class CausalConv3d(nn.Cell):
         stride = cast_tuple(stride, 3)  # (stride, 1, 1)
         dilation = cast_tuple(dilation, 3)  # (dilation, 1, 1)
 
-        """
-        if isinstance(padding, str):
-            if padding == 'same':
-                height_pad = height_kernel_size // 2
-                width_pad = width_kernel_size // 2
-            elif padding == 'valid':
-                height_pad = 0
-                width_pad = 0
-            else:
-                raise ValueError
-        else:
-            padding = list(cast_tuple(padding, 3))
-        """
-
         # pad temporal dimension by k-1, manually
-        self.time_pad = dilation[0] * (time_kernel_size - 1) + (1 - stride[0])
-        if self.time_pad >= 1:
-            self.temporal_padding = True
-        else:
-            self.temporal_padding = False
+        time_pad = dilation[0] * (time_kernel_size - 1) + (1 - stride[0])
+        height_pad = height_kernel_size // 2
+        width_pad = width_kernel_size // 2
+
+        self.time_pad = time_pad
+        self.time_causal_padding = ((0, 0), (0, 0), (time_pad, 0), (height_pad, height_pad), (width_pad, width_pad))
 
         # pad h,w dimensions if used, by conv3d API
         # diff from torch: bias, pad_mode
 
-        # TODO: why not use HeUniform init?
-        weight_init_value = 1.0 / (np.prod(kernel_size) * chan_in)
-        if padding == 0:
-            self.conv = nn.Conv3d(
-                chan_in,
-                chan_out,
-                kernel_size,
-                stride=stride,
-                dilation=dilation,
-                has_bias=True,
-                pad_mode="same",
-                weight_init=weight_init_value,
-                bias_init="zeros",
-                **kwargs,
-            ).to_float(dtype)
-        else:
-            # axis order (t0, t1, h0 ,h1, w0, w2)
-            padding = list(cast_tuple(padding, 6))
-            padding[0] = 0
-            padding[1] = 0
-            padding = tuple(padding)
-            self.conv = nn.Conv3d(
-                chan_in,
-                chan_out,
-                kernel_size,
-                stride=stride,
-                dilation=dilation,
-                has_bias=True,
-                pad_mode="pad",
-                padding=padding,
-                weight_init=weight_init_value,
-                bias_init="zeros",
-                **kwargs,
-            ).to_float(dtype)
+        self.conv = nn.Conv3d(
+            chan_in,
+            chan_out,
+            kernel_size,
+            stride=stride,
+            dilation=dilation,
+            has_bias=True,
+            pad_mode="pad",
+            **kwargs,
+        ).to_float(dtype)
 
     def construct(self, x):
         # x: (bs, Cin, T, H, W )
-        if self.temporal_padding:
-            first_frame = x[:, :, :1, :, :]
-            first_frame_pad = ops.repeat_interleave(first_frame, self.time_pad, axis=2)
-            x = ops.concat((first_frame_pad, x), axis=2)
+        op_pad = ops.Pad(self.time_causal_padding)
+        x = op_pad(x)
+        x = self.conv(x)
 
-        return self.conv(x)
+        return x
 
 
 class CausalConv3dZeroPad(nn.Cell):
@@ -228,7 +183,7 @@ def SameConv2d(dim_in, dim_out, kernel_size):
     )
     padding = tuple([k // 2 for k in kernel_size_extend])
     return nn.Conv2d(
-        dim_in, dim_out, kernel_size=kernel_size, padding=padding, pad_mode="pad"
+        dim_in, dim_out, kernel_size=kernel_size, padding=padding, pad_mode="pad", has_bias=True
     )
 
 
@@ -263,10 +218,30 @@ class Upsample3D(nn.Cell):
             ).to_float(self.dtype)
 
     def construct(self, x):
-        in_shape = x.shape[-2:]
-        out_shape = tuple(2 * x for x in in_shape)
-        # x = ops.ResizeNearestNeighbor(out_shape)(x)
-        x = ops.interpolate(x, scale_factor=self.scale_factor)
+        b, c, t, h, w = x.shape
+
+        x = ops.reshape(x, (b, c*t, h, w))
+
+        # spatial upsample
+        hw_in = x.shape[-2:]
+        hw_out = tuple(int(f_ * s_) for s_, f_ in zip(hw_in, self.scale_factor[-2:]))
+        x = ops.ResizeNearestNeighbor(hw_out)(x)
+
+        # spatial upsample
+        hw_size = int(h * self.scale_factor[1] * w * self.scale_factor[2])
+        x = ops.reshape(x, (b, c, t, hw_size))
+        hw_out = tuple([int(self.scale_factor[0] * t), hw_size])
+        x = ops.ResizeNearestNeighbor(hw_out)(x)
+        x = ops.reshape(
+            x,
+            (
+                b,
+                c,
+                int(t * self.scale_factor[0]),
+                int(h * self.scale_factor[1]),
+                int(w * self.scale_factor[2]),
+            )
+        )
 
         if self.with_conv:
             x = self.conv(x)
@@ -535,10 +510,13 @@ class ResnetBlock3D(nn.Cell):
         self.upcast_sigmoid = upcast_sigmoid
 
         # FIXME: GroupNorm precision mismatch with PT.
-        self.norm1 = Normalize(in_channels, extend=True)
+        self.norm1 = GroupNormExtend(
+            num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
+        )
         self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1, dtype=dtype)
-        self.norm2 = Normalize(out_channels, extend=True)
-        self.dropout = nn.Dropout(p=dropout)
+        self.norm2 = GroupNormExtend(
+            num_groups=32, num_channels=out_channels, eps=1e-6, affine=True, dtype=dtype
+        )
         self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1, dtype=dtype)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
@@ -557,7 +535,6 @@ class ResnetBlock3D(nn.Cell):
         h = self.conv1(h)
         h = self.norm2(h)
         h = nonlinearity(h, self.upcast_sigmoid)
-        h = self.dropout(h)
         h = self.conv2(h)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:

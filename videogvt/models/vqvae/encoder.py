@@ -5,10 +5,9 @@ import numpy as np
 from videogvt.models.vqvae.model_utils import (
     ResnetBlock3D,
     ResidualStack,
-    ResidualNet,
-    Downsample,
     CausalConv3d,
     GroupNormExtend,
+    nonlinearity,
     _get_selected_flags,
 )
 
@@ -105,12 +104,6 @@ class Encoder3D(nn.Cell):
         self.custom_conv_padding = self.config.vqvae.get("custom_conv_padding")
         self.norm_type = self.config.vqvae.norm_type
         self.num_remat_block = self.config.vqvae.get("num_enc_remat_blocks", 0)
-        if self.config.vqvae.activation_fn == "relu":
-            self.activation_fn = ops.relu
-        elif self.config.vqvae.activation_fn == "elu":
-            self.activation_fn = ops.elu
-        else:
-            raise NotImplementedError
 
         dim_gp = self.filters * self.channel_multipliers[-1]
 
@@ -152,71 +145,8 @@ class Encoder3D(nn.Cell):
         # x = self.conv_in(x)
         x = self.residual_stack(x)
         x = self.norm(x)
-        x = self.activation_fn(x)
+        x = nonlinearity(x)
         x = self.conv_out(x)
-        return x
-
-
-class Encoder_v2(nn.Cell):
-    def __init__(self, config):
-        super(Encoder_v2, self).__init__()
-
-        self.config = config
-        self.in_channels = 3
-        self.init_dim = 64
-        self.input_conv_kernel_size = (7, 7, 7)
-        self.output_conv_kernel_size = (3, 3, 3)
-        self.layers = ("residual", "residual", "residual")
-
-        self.filters = self.config.vqvae.filters
-        self.num_res_blocks = self.config.vqvae.num_enc_res_blocks
-        self.channel_multipliers = self.config.vqvae.channel_multipliers
-        self.temporal_downsample = self.config.vqvae.temporal_downsample
-        if isinstance(self.temporal_downsample, int):
-            self.temporal_downsample = _get_selected_flags(
-                len(self.channel_multipliers) - 1, self.temporal_downsample, False
-            )
-        self.embedding_dim = self.config.vqvae.embedding_dim
-        self.conv_downsample = self.config.vqvae.conv_downsample
-        self.custom_conv_padding = self.config.vqvae.get("custom_conv_padding")
-        self.norm_type = self.config.vqvae.norm_type
-        self.num_remat_block = self.config.vqvae.get("num_enc_remat_blocks", 0)
-        if self.config.vqvae.activation_fn == "relu":
-            self.activation_fn = ops.relu
-        elif self.config.vqvae.activation_fn == "elu":
-            self.activation_fn = ops.elu
-        else:
-            raise NotImplementedError
-
-        self.conv_in = CausalConv3d(
-            self.in_channels, self.init_dim, self.input_conv_kernel_size
-        )
-        self.conv_in_first_frame = nn.Identity()
-        self.conv_out_first_frame = nn.Identity()
-        self.conv_out = CausalConv3d(
-            self.init_dim, self.in_channels, self.output_conv_kernel_size
-        )
-
-        dim = self.init_dim
-        dim_out = dim
-        residual_conv_kernel_size = 3
-
-        self.enc_layers = nn.CellList()
-        for layer in self.layers:
-            self.enc_layers.append(ResidualNet(dim, residual_conv_kernel_size))
-        self.norm = nn.LayerNorm(dim_out)
-
-    def construct(self, x):
-        x = self.conv_in(x)
-
-        for layer in self.enc_layers:
-            x = layer(x)
-
-        # rearrange
-        x = x.permute(0, 2, 3, 4, 1)
-        x = self.norm(x)
-        x = x.permute(0, 4, 1, 2, 3)
-
         return x
 
 

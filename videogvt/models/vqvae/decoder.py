@@ -8,6 +8,7 @@ from videogvt.models.vqvae.model_utils import (
     Upsample3D,
     CausalConv3d,
     GroupNormExtend,
+    nonlinearity,
     _get_selected_flags,
 )
 
@@ -89,12 +90,6 @@ class Decoder3D(nn.Cell):
         self.custom_conv_padding = self.config.vqvae.get("custom_conv_padding")
         self.norm_type = self.config.vqvae.norm_type
         self.num_remat_block = self.config.vqvae.get("num_dec_remat_blocks", 0)
-        if self.config.vqvae.activation_fn == "relu":
-            self.activation_fn = ops.elu
-        elif self.config.vqvae.activation_fn == "elu":
-            self.activation_fn = ops.elu
-        else:
-            raise NotImplementedError
 
         init_dim = self.filters * self.channel_multipliers[-1]
         self.conv_in = CausalConv3d(
@@ -155,7 +150,7 @@ class Decoder3D(nn.Cell):
         x = self.conv_in(x)
         x = self.residual_stack(x)
         x = self.norm(x)
-        x = self.activation_fn(x)
+        x = nonlinearity(x)
         # x = self.conv_out(x)
         return x
 

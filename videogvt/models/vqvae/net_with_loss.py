@@ -5,13 +5,31 @@ from mindspore import nn, ops
 from .lpips import LPIPS
 
 
-@ms.jit
 def _rearrange_in(x):
     b, c, t, h, w = x.shape
     x = x.permute(0, 2, 1, 3, 4)
     x = ops.reshape(x, (b * t, c, h, w))
 
     return x
+
+
+def lecam_reg(real_pred, fake_pred, ema_real_pred, ema_fake_pred):
+    """Lecam loss for data-efficient and stable GAN training.
+
+    Described in https://arxiv.org/abs/2104.03310
+
+    Args:
+        real_pred: Prediction (scalar) for the real samples.
+        fake_pred: Prediction for the fake samples.
+        ema_real_pred: EMA prediction (scalar)  for the real samples.
+        ema_fake_pred: EMA prediction for the fake samples.
+
+    Returns:
+        Lecam regularization loss (scalar).
+    """
+    lecam_loss = ops.mean(ops.pow(ops.relu(real_pred - ema_fake_pred), 2))
+    lecam_loss += ops.mean(ops.pow(ops.relu(ema_real_pred - fake_pred), 2))
+    return lecam_loss
 
 
 class GeneratorWithLoss(nn.Cell):
@@ -21,8 +39,9 @@ class GeneratorWithLoss(nn.Cell):
         disc_start=50001,
         disc_weight=0.1,
         disc_factor=1.0,
-        perceptual_weight=1.0,
+        perceptual_weight=0.1,
         recons_weight=5.0,
+        lecam_weight=0.001,
         discriminator=None,
         dtype=ms.float32,
         **kwargs,
@@ -33,15 +52,17 @@ class GeneratorWithLoss(nn.Cell):
         self.vqvae = vqvae
         # TODO: set dtype for LPIPS ?
         self.perceptual_loss = LPIPS()  # freeze params inside
-        self.perceptual_loss.to_float(dtype)
+        # self.perceptual_loss.to_float(dtype)
 
-        self.l1 = nn.L1Loss(reduction="none")
+        # self.l1 = nn.L1Loss(reduction="none")
+        self.mse = nn.MSELoss()
 
         self.disc_start = disc_start
         self.disc_weight = disc_weight
         self.disc_factor = disc_factor
         self.recons_weight = recons_weight
         self.perceptual_weight = perceptual_weight
+        self.lecam_weight = lecam_weight
 
         self.discriminator = discriminator
         if (self.discriminator is not None) and (self.disc_factor > 0.0):
@@ -58,7 +79,6 @@ class GeneratorWithLoss(nn.Cell):
         aux_loss,
         cond=None,
     ):
-        bs = x.shape[0]
         x_reshape = _rearrange_in(x)
         recons_reshape = _rearrange_in(recons)
 
@@ -66,17 +86,16 @@ class GeneratorWithLoss(nn.Cell):
         loss = aux_loss
 
         # 2.2 reconstruction loss in pixels
-        rec_loss = self.l1(x_reshape, recons_reshape) * self.recons_weight
+        rec_loss = self.mse(recons_reshape, x_reshape) * self.recons_weight
 
         # 2.3 perceptual loss
         if self.perceptual_weight > 0:
-            p_loss = self.perceptual_loss(x_reshape, recons_reshape)
+            p_loss = self.perceptual_loss(recons_reshape, x_reshape)
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
         loss += rec_loss.mean()
 
         # 2.4 discriminator loss if enabled
-        g_loss = ms.Tensor(0.0, dtype=self.dtype)
         if self.has_disc:
             # calc gan loss
             if cond is None:
@@ -85,27 +104,13 @@ class GeneratorWithLoss(nn.Cell):
                 logits_fake = self.discriminator(ops.concat((recons, cond), dim=1))
             g_loss = -ops.mean(logits_fake)
 
-        # TODO: do adaptive weighting based on grad
-        # d_weight = self.calculate_adaptive_weight(mean_nll_loss, g_loss, last_layer=last_layer)
-        d_weight = self.disc_weight
-        loss += d_weight * self.disc_factor * g_loss
-        # print(f"nll_loss: {mean_weighted_nll_loss.asnumpy():.4f}, kl_loss: {kl_loss.asnumpy():.4f}")
+            # LeCAM regularization
+            logits_real = self.discriminator(x)
+            lecam_loss = lecam_reg(logits_real, logits_fake, ms.Tensor(0.0, self.dtype), ms.Tensor(0.0, self.dtype))
+            g_loss += lecam_loss * self.lecam_weight
 
-        """
-        split = "train"
-        log = {"{}/total_loss".format(split): loss.asnumpy().mean(),
-           "{}/logvar".format(split): self.logvar.value().asnumpy(),
-           "{}/kl_loss".format(split): kl_loss.asnumpy().mean(),
-           "{}/nll_loss".format(split): nll_loss.asnumpy().mean(),
-           "{}/rec_loss".format(split): rec_loss.asnumpy().mean(),
-           # "{}/d_weight".format(split): d_weight.detach(),
-           # "{}/disc_factor".format(split): torch.tensor(disc_factor),
-           # "{}/g_loss".format(split): g_loss.detach().mean(),
-           }
-        for k in log:
-            print(k.split("/")[1], log[k])
-        """
-        # TODO: return more losses
+            d_weight = self.disc_weight
+            loss += d_weight * self.disc_factor * g_loss
 
         return loss
 
