@@ -108,10 +108,14 @@ class Encoder3D(nn.Cell):
         dim_gp = self.filters * self.channel_multipliers[-1]
 
         self.conv_out = CausalConv3d(
-            dim_gp, self.out_channels, self.output_conv_kernel_size, padding=0, dtype=dtype
+            dim_gp,
+            self.out_channels,
+            self.output_conv_kernel_size,
+            padding=0,
+            dtype=dtype,
         )
         self.residual_stack = nn.SequentialCell()
-        self.norm = GroupNormExtend(dim_gp, dim_gp)
+        self.norm = GroupNormExtend(dim_gp, dim_gp, dtype=dtype)
 
         num_blocks = len(self.channel_multipliers)
         for i in range(num_blocks):
@@ -124,10 +128,10 @@ class Encoder3D(nn.Cell):
                 dim_in = self.filters * self.channel_multipliers[i - 1]
                 t_stride = (2, 2, 2)
 
-            self.residual_stack.append(ResnetBlock3D(dim_in, filters))
+            self.residual_stack.append(ResnetBlock3D(dim_in, filters, dtype=dtype))
 
             for _ in range(self.num_res_blocks - 1):
-                self.residual_stack.append(ResnetBlock3D(filters, filters))
+                self.residual_stack.append(ResnetBlock3D(filters, filters, dtype=dtype))
 
             if self.temporal_downsample[i]:
                 self.residual_stack.append(

@@ -33,6 +33,7 @@ from mindone.trainers.callback import (
 from mindone.trainers.checkpoint import CheckpointManager, resume_train_network
 from mindone.trainers.ema import EMA
 from mindone.trainers.lr_schedule import create_scheduler
+
 # from mindone.trainers.optim import create_optimizer
 from mindone.trainers.train_step import TrainOneStepWrapper
 from mindone.utils.amp import auto_mixed_precision
@@ -67,7 +68,7 @@ def create_loss_scaler(
 def main(args):
     # 1. init
     # ascend_config={"precision_mode": "allow_fp32_to_fp16"}
-    ascend_config={"precision_mode": "allow_mix_precision_bf16"}
+    ascend_config = {"precision_mode": "allow_mix_precision_bf16"}
     device_id, rank_id, device_num = init_train_env(
         args.mode,
         device_target=args.device_target,
@@ -86,7 +87,14 @@ def main(args):
     #  vqvae (G)
     model_config = get_config("B")
     dtype = {"fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-    vqvae = VQVAE3D(model_config, lookup_free_quantization=True, is_training=True, video_contains_first_frame=True, separate_first_frame_encoding=True, dtype=dtype)
+    vqvae = VQVAE3D(
+        model_config,
+        lookup_free_quantization=True,
+        is_training=True,
+        video_contains_first_frame=True,
+        separate_first_frame_encoding=True,
+        dtype=dtype,
+    )
     if args.pretrained is not None:
         logger.info(f"Loading vqvae from {args.pretrained}")
         ms.load_checkpoint(args.pretrained, vqvae, filter_prefix=None)
@@ -102,7 +110,9 @@ def main(args):
     if use_discriminator:
         crop_size = int(args.crop_size)
         frame_size = int(args.num_frames)
-        disc = StyleGANDiscriminator(model_config, crop_size, crop_size, frame_size, dtype=dtype)
+        disc = StyleGANDiscriminator(
+            model_config, crop_size, crop_size, frame_size, dtype=dtype
+        )
     else:
         disc = None
 
@@ -110,7 +120,6 @@ def main(args):
     # TODO: set softmax, sigmoid computed in FP32. manually set inside network since they are ops, instead of layers whose precision will be set by AMP level.
     if args.dtype not in ["fp32", "bf16"]:
         amp_level = "O2"
-        dtype = {"fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
         vqvae = auto_mixed_precision(vqvae, amp_level, dtype)
         if use_discriminator:
             disc = auto_mixed_precision(disc, amp_level, dtype)
@@ -219,6 +228,8 @@ def main(args):
         weight_decay=args.weight_decay,
         lr=lr,
         eps=1e-04,
+        beta1=0.001,
+        beta2=0.99,
     )
 
     loss_scaler_vqvae = create_loss_scaler(

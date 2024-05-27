@@ -145,7 +145,7 @@ def parse_args():
         help="Grouping strategy for weight decay. If `norm_and_bias`, weight decay filter list is [beta, gamma, bias]. \
                 If None, filter list is [layernorm, bias]. Default: norm_and_bias",
     )
-    parser.add_argument("--seed", default=3407, type=int, help="data path")
+    parser.add_argument("--seed", default=3407, type=int, help="random seed")
     parser.add_argument("--warmup_steps", default=1000, type=int, help="warmup steps")
     parser.add_argument("--batch_size", default=4, type=int, help="batch size")
     parser.add_argument("--log_interval", default=1, type=int, help="log interval")

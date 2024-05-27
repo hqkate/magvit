@@ -42,7 +42,6 @@ class VQVAE(nn.Cell):
             self.img_to_embedding_map = None
 
     def construct(self, x, verbose=False):
-
         z_e = self.encoder(x)
 
         z_e = self.pre_quantization_conv(z_e)
@@ -93,11 +92,15 @@ class VQVAE3D(nn.Cell):
 
         # encoder conv_in
         input_conv_kernel_size = (3, 3, 3)
-        self.conv_in = CausalConv3d(in_dim, h_dim, input_conv_kernel_size, padding=1, dtype=dtype)
+        self.conv_in = CausalConv3d(
+            in_dim, h_dim, input_conv_kernel_size, padding=1, dtype=dtype
+        )
 
         # decoder conv_out
         output_conv_kernel_size = (3, 3, 3)
-        self.conv_out = CausalConv3d(h_dim, in_dim, output_conv_kernel_size, padding=1, dtype=dtype)
+        self.conv_out = CausalConv3d(
+            h_dim, in_dim, output_conv_kernel_size, padding=1, dtype=dtype
+        )
 
         # whether to encode the first frame separately or not
 
@@ -119,7 +122,9 @@ class VQVAE3D(nn.Cell):
         self.time_downsample_factor = time_downsample_factor
         self.time_padding = time_downsample_factor - 1
 
-        self.pre_quantization_conv = nn.Conv3d(m_dim, m_dim, kernel_size=1, stride=1, has_bias=True, dtype=dtype)
+        self.pre_quantization_conv = nn.Conv3d(
+            m_dim, m_dim, kernel_size=1, stride=1, has_bias=True, dtype=dtype
+        )
 
         # pass continuous latent vector through discretization bottleneck
         if lookup_free_quantization:
@@ -128,7 +133,7 @@ class VQVAE3D(nn.Cell):
                 codebook_size=self.codebook_size,
                 return_loss_breakdown=False,
                 is_training=is_training,
-                dtype=dtype
+                dtype=dtype,
             )
             logger.info("Using Lookup Free Quantization.")
         else:
@@ -267,7 +272,6 @@ class VQVAE3D(nn.Cell):
         return video_size // (2**self.config.vqvae.num_enc_res_blocks)
 
     def construct(self, x):
-
         encode_first_frame_separately = (
             self.separate_first_frame_encoding and self.video_contains_first_frame
         )

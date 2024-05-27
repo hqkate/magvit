@@ -110,7 +110,13 @@ class CausalConv3d(nn.Cell):
         width_pad = width_kernel_size // 2
 
         self.time_pad = time_pad
-        self.time_causal_padding = ((0, 0), (0, 0), (time_pad, 0), (height_pad, height_pad), (width_pad, width_pad))
+        self.time_causal_padding = (
+            (0, 0),
+            (0, 0),
+            (time_pad, 0),
+            (height_pad, height_pad),
+            (width_pad, width_pad),
+        )
 
         # pad h,w dimensions if used, by conv3d API
         # diff from torch: bias, pad_mode
@@ -165,11 +171,19 @@ class CausalConv3dZeroPad(nn.Cell):
 def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
     if extend:
         return GroupNormExtend(
-            num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
+            num_groups=num_groups,
+            num_channels=in_channels,
+            eps=1e-6,
+            affine=True,
+            dtype=dtype,
         )
     else:
         return nn.GroupNorm(
-            num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
+            num_groups=num_groups,
+            num_channels=in_channels,
+            eps=1e-6,
+            affine=True,
+            dtype=dtype,
         )
 
 
@@ -183,14 +197,19 @@ def SameConv2d(dim_in, dim_out, kernel_size):
     )
     padding = tuple([k // 2 for k in kernel_size_extend])
     return nn.Conv2d(
-        dim_in, dim_out, kernel_size=kernel_size, padding=padding, pad_mode="pad", has_bias=True
+        dim_in,
+        dim_out,
+        kernel_size=kernel_size,
+        padding=padding,
+        pad_mode="pad",
+        has_bias=True,
     )
 
 
 def Avgpool3d(x):
     # ops.AvgPool3D(strides=(2, 2, 2))
     b, c, h, w, d = x.shape
-    x = x.reshape(b*c, h, w, d)
+    x = x.reshape(b * c, h, w, d)
     x = ops.AvgPool(kernel_size=1, strides=2)(x)
     x = ops.permute(x, (0, 2, 3, 1))
     x = ops.AvgPool(kernel_size=1, strides=(1, 2))(x)
@@ -220,7 +239,7 @@ class Upsample3D(nn.Cell):
     def construct(self, x):
         b, c, t, h, w = x.shape
 
-        x = ops.reshape(x, (b, c*t, h, w))
+        x = ops.reshape(x, (b, c * t, h, w))
 
         # spatial upsample
         hw_in = x.shape[-2:]
@@ -240,7 +259,7 @@ class Upsample3D(nn.Cell):
                 int(t * self.scale_factor[0]),
                 int(h * self.scale_factor[1]),
                 int(w * self.scale_factor[2]),
-            )
+            ),
         )
 
         if self.with_conv:

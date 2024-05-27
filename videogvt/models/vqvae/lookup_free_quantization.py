@@ -87,10 +87,14 @@ class LFQ(nn.Cell):
 
         has_projections = dim != codebook_dims
         self.project_in = (
-            nn.Dense(dim, codebook_dims, dtype=dtype) if has_projections else nn.Identity()
+            nn.Dense(dim, codebook_dims, dtype=dtype)
+            if has_projections
+            else nn.Identity()
         )
         self.project_out = (
-            nn.Dense(codebook_dims, dim, dtype=dtype) if has_projections else nn.Identity()
+            nn.Dense(codebook_dims, dim, dtype=dtype)
+            if has_projections
+            else nn.Identity()
         )
         self.has_projections = has_projections
 

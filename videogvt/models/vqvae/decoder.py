@@ -93,7 +93,11 @@ class Decoder3D(nn.Cell):
 
         init_dim = self.filters * self.channel_multipliers[-1]
         self.conv_in = CausalConv3d(
-            self.in_channels, init_dim, self.input_conv_kernel_size, padding=1, dtype=dtype
+            self.in_channels,
+            init_dim,
+            self.input_conv_kernel_size,
+            padding=1,
+            dtype=dtype,
         )
         # self.conv_out = CausalConv3d(
         #     self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=dtype
@@ -135,16 +139,25 @@ class Decoder3D(nn.Cell):
                     elif self.upsample == "nearest+conv":
                         scales = (float(t_stride), 2.0, 2.0)
                         self.residual_stack.append(
-                            Upsample3D(filters, self.temporal_downsample[i - 1], scales, dtype=dtype)
+                            Upsample3D(
+                                filters,
+                                self.temporal_downsample[i - 1],
+                                scales,
+                                dtype=dtype,
+                            )
                         )
                         self.residual_stack.append(
-                            nn.Conv3d(filters, filters, kernel_size=(3, 3, 3), dtype=dtype)
+                            nn.Conv3d(
+                                filters, filters, kernel_size=(3, 3, 3), dtype=dtype
+                            )
                         )
                     else:
                         raise NotImplementedError(f"Unknown upsampler: {self.upsample}")
 
                 # Adaptive GroupNorm
-                self.residual_stack.append(GroupNormExtend(filters, filters, dtype=dtype))
+                self.residual_stack.append(
+                    GroupNormExtend(filters, filters, dtype=dtype)
+                )
 
     def construct(self, x):
         x = self.conv_in(x)

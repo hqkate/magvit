@@ -106,7 +106,12 @@ class GeneratorWithLoss(nn.Cell):
 
             # LeCAM regularization
             logits_real = self.discriminator(x)
-            lecam_loss = lecam_reg(logits_real, logits_fake, ms.Tensor(0.0, self.dtype), ms.Tensor(0.0, self.dtype))
+            lecam_loss = lecam_reg(
+                logits_real,
+                logits_fake,
+                ms.Tensor(0.0, self.dtype),
+                ms.Tensor(0.0, self.dtype),
+            )
             g_loss += lecam_loss * self.lecam_weight
 
             d_weight = self.disc_weight

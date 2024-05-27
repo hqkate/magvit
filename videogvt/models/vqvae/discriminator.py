@@ -37,7 +37,15 @@ def get_pad_layer(pad_type):
 
 
 class BlurPool3d(nn.Cell):
-    def __init__(self, channels, pad_type="reflect", filt_size=4, stride=2, pad_off=0):
+    def __init__(
+        self,
+        channels,
+        pad_type="reflect",
+        filt_size=4,
+        stride=2,
+        pad_off=0,
+        dtype=ms.float32,
+    ):
         super(BlurPool3d, self).__init__()
         self.filt_size = filt_size
         self.pad_off = pad_off
@@ -53,6 +61,7 @@ class BlurPool3d(nn.Cell):
         self.stride = stride
         self.off = int((self.stride - 1) / 2.0)
         self.channels = channels
+        self.dtype = dtype
 
         if self.filt_size == 1:
             a = np.array(
@@ -77,13 +86,17 @@ class BlurPool3d(nn.Cell):
             np.repeat(
                 np.expand_dims(a[:, None] * a[None, :], 0), self.filt_size, axis=0
             ),
-            ms.float32,
+            self.dtype,
         )
         filt = filt / ops.sum(filt)
         filt = filt.unsqueeze(0).unsqueeze(0)
         filt = filt.repeat(self.channels, 0).repeat(self.channels, 1)
         self.filt = ms.Parameter(filt, requires_grad=False)
-        self.pad = get_pad_layer(pad_type)(self.pad_sizes) if pad_type != "zero" else get_pad_layer(pad_type)(self.pad_sizes, 0)
+        self.pad = (
+            get_pad_layer(pad_type)(self.pad_sizes)
+            if pad_type != "zero"
+            else get_pad_layer(pad_type)(self.pad_sizes, 0)
+        )
 
     def construct(self, inp):
         if self.filt_size == 1:
@@ -115,14 +128,22 @@ class ResBlockDown(nn.Cell):
             dtype
         )
         self.norm1 = GroupNormExtend(
-            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
+            num_groups=32,
+            num_channels=self.out_channels,
+            eps=1e-6,
+            affine=True,
+            dtype=dtype,
         )
         self.activation1 = nn.LeakyReLU()
         self.conv2 = nn.Conv3d(
             self.out_channels, self.out_channels, (3, 3, 3)
         ).to_float(dtype)
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=self.out_channels, eps=1e-6, affine=True, dtype=dtype
+            num_groups=32,
+            num_channels=self.out_channels,
+            eps=1e-6,
+            affine=True,
+            dtype=dtype,
         )
         self.activation2 = nn.LeakyReLU()
         # self.dropout = nn.Dropout(p=dropout)
@@ -142,7 +163,6 @@ class ResBlockDown(nn.Cell):
 
         # h = ops.AvgPool3D(strides=(2, 2, 2))(h)
         h = self.blurpool1(h)
-
 
         h = self.conv2(h)
         h = self.norm2(h)
