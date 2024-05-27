@@ -129,7 +129,7 @@ class LFQ(nn.Cell):
 
         # for no auxiliary loss, during inference
 
-        self.mask = ops.pow(2, ops.arange(codebook_dim - 1, -1, -1))
+        self.mask = ms.Parameter(ops.pow(2, ops.arange(codebook_dim - 1, -1, -1)), requires_grad=False)
 
         # codes
 
@@ -137,8 +137,7 @@ class LFQ(nn.Cell):
         bits = ((all_codes[..., None] & self.mask) != 0).float().astype(dtype)
         codebook = self.bits_to_codes(bits)
 
-        # self.codebook = ms.Parameter(codebook, requires_grad=False)
-        self.codebook = codebook
+        self.codebook = ms.Parameter(codebook, requires_grad=False)
 
         # training
         self.training = is_training
