@@ -128,7 +128,7 @@ class VQVAE3D(nn.Cell):
                 codebook_size=self.codebook_size,
                 return_loss_breakdown=False,
                 is_training=is_training,
-                # **lfq_kwargs
+                dtype=dtype
             )
             logger.info("Using Lookup Free Quantization.")
         else:
