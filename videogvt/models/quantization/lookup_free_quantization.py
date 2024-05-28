@@ -149,7 +149,6 @@ class LFQ(nn.Cell):
         return self.codebook.dtype
 
     def indices_to_codes(self, indices, project_out=True):
-        # is_img_or_video = indices.ndim >= (3 + int(self.keep_num_codebooks_dim))
 
         if not self.keep_num_codebooks_dim:
             # indices = rearrange(indices, '... -> ... 1')
@@ -173,7 +172,6 @@ class LFQ(nn.Cell):
 
         # rearrange codes back to original shape
 
-        # if is_img_or_video:
         # codes = rearrange(codes, 'b ... d -> b d ...')
         codes = codes.permute(0, 4, 1, 2, 3)
 
@@ -193,11 +191,7 @@ class LFQ(nn.Cell):
         c - number of codebook dim
         """
 
-        is_img_or_video = x.ndim >= 4
-
         # standardize image or video into (batch, seq, dimension)
-
-        # if is_img_or_video:
         # x = rearrange(x, 'b d ... -> b ... d')
         x = x.permute(0, 2, 3, 4, 1)
         x_shape = x.shape
@@ -234,9 +228,7 @@ class LFQ(nn.Cell):
             x = quantized
 
         # calculate indices
-
-        # indices = reduce((x > 0).int() * self.mask.int(), 'b n c d -> b n c', 'sum')
-        # indices = ops.sum((x > 0).int() * self.mask.int(), dim=-1)
+        indices = ops.sum((x > 0).int() * self.mask.int(), dim=-1)
 
         # entropy aux loss
 
@@ -247,12 +239,6 @@ class LFQ(nn.Cell):
 
             prob = ops.softmax(distance * inv_temperature, axis=-1)
 
-            # account for mask
-
-            # if exists(mask):
-            #     prob = prob[mask]
-            # else:
-            # prob = rearrange(prob, 'b n ... -> (b n) ...')
             b, n, c, d = prob.shape
             prob = prob.reshape(b * n, c, d)
 
@@ -272,7 +258,6 @@ class LFQ(nn.Cell):
 
             # distribution over all available tokens in the batch
 
-            # avg_prob = reduce(per_sample_probs, '... c d -> c d', 'mean')
             avg_prob = ops.mean(per_sample_probs, axis=(0, 1, 2))
             codebook_entropy = entropy(avg_prob).mean()
 
@@ -283,8 +268,6 @@ class LFQ(nn.Cell):
                 per_sample_entropy - self.diversity_gamma * codebook_entropy
             )
         else:
-            # if not training, just return dummy 0
-            # entropy_aux_loss = per_sample_entropy = codebook_entropy = self.zero
             entropy_aux_loss = ms.Tensor(0.0)
             per_sample_entropy = ms.Tensor(0.0)
             codebook_entropy = ms.Tensor(0.0)
@@ -293,10 +276,6 @@ class LFQ(nn.Cell):
 
         if self.training:
             commit_loss = ops.mse_loss(original_input, quantized, reduction="none")
-
-            # if exists(mask):
-            #     commit_loss = commit_loss[mask]
-
             commit_loss = commit_loss.mean()
         else:
             commit_loss = ms.Tensor(0.0)
@@ -313,11 +292,9 @@ class LFQ(nn.Cell):
 
         # reconstitute image or video dimensions
 
-        # if is_img_or_video:
-        # x = unpack_one(x, ps, 'b * d')
-        # x = rearrange(x, 'b ... d -> b d ...')
         x = x.reshape(*x_shape)
         x = x.permute(0, 4, 1, 2, 3)
+        indices = indices.squeeze(-1)
 
         # complete aux loss
 
@@ -327,7 +304,7 @@ class LFQ(nn.Cell):
         )
 
         if not self.return_loss_breakdown:
-            return (x, aux_loss)
+            return (x, indices, aux_loss)
 
         else:
-            return (x, aux_loss, per_sample_entropy, codebook_entropy, commit_loss)
+            return (x, indices, aux_loss, per_sample_entropy, codebook_entropy, commit_loss)
