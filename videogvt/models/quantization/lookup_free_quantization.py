@@ -129,7 +129,7 @@ class LFQ(nn.Cell):
 
         # for no auxiliary loss, during inference
 
-        self.mask = ms.Parameter(ops.pow(2, ops.arange(codebook_dim - 1, -1, -1)), requires_grad=False)
+        self.mask = ops.pow(2, ops.arange(codebook_dim - 1, -1, -1))
 
         # codes
 
