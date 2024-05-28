@@ -6,7 +6,7 @@ from mindspore import context
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
 
-from videogvt.models.vqvae.lookup_free_quantization import LFQ
+from videogvt.models.quantization import LFQ
 from videogvt.config.vqgan3d_magvit_v2_config import get_config
 
 # GRAPH_MODE
@@ -29,7 +29,8 @@ model = LFQ(
 
 x = ms.Tensor(np.random.rand(2, 18, 4, 16, 16), ms.float32)
 
-z_q, aux_loss = model(x)
+z_q, indices, aux_loss = model(x)
 
 print("original input shape: ", x.shape)
 print("quantized shape: ", z_q.shape)
+print("indeces shape: ", indices.shape)

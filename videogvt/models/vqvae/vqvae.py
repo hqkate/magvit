@@ -4,9 +4,8 @@ import mindspore as ms
 import numpy as np
 from mindspore import nn, ops
 
+from videogvt.models.quantization import VQ, LFQ
 from videogvt.models.vqvae.encoder import Encoder, Encoder3D
-from videogvt.models.vqvae.vector_quantizer import VQ
-from videogvt.models.vqvae.lookup_free_quantization import LFQ
 from videogvt.models.vqvae.decoder import Decoder, Decoder3D
 from videogvt.models.vqvae.model_utils import SameConv2d, pad_at_dim, CausalConv3d
 
@@ -211,7 +210,6 @@ class VQVAE3D(nn.Cell):
         self,
         path,
         ignore_keys=list(),
-        remove_prefix=["first_stage_model.", "autoencoder."],
     ):
         # TODO: support auto download pretrained checkpoints
         sd = ms.load_checkpoint(path)
@@ -225,58 +223,16 @@ class VQVAE3D(nn.Cell):
         ms.load_param_into_net(self, sd, strict_load=False)
         logger.info(f"Restored from {path}")
 
-    def encode(self, x):
-        self.set_train(False)
-        z_e = self.encoder(x)
-        z_e = self.pre_quantization_conv(z_e)
-        quantized, _ = self.quantizer(z_e)
-        return quantized
-
-    def decode(self, x):
-        self.set_train(False)
-        return self.decoder(x)
-
-    def decode_from_indices(self, ids: np.ndarray):
-        features = self.quantizer.decode_ids(ids)
-        reconstructed_video = self.decode(features)
-        return reconstructed_video
-
-    # def decode_from_ids(self, ids):
-
-    #     if self.lookup_free_quantization:
-    #         ids, ps = pack([ids], 'b *')
-    #         fmap = self.quantizer.indices_to_codes(ids)
-    #         fmap, = unpack(fmap, ps, 'b * c')
-    #     else:
-    #         codes = self.codebook[ids]
-    #         fmap = self.quantizer.project_out(codes)
-
-    #     fmap = rearrange(fmap, 'b h w c -> b c h w')
-    #     return self.decode(fmap)
-
-    def decode_stage1(self, ids: np.ndarray):
-        features = self.quantizer.decode_ids(ids)
-        pre_activation_embeddings = self.decoder(features, mode="stage1")
-        return pre_activation_embeddings
-
-    def decode_stage2(self, embeddings: np.ndarray):
-        reconstructed_video = self.decoder(embeddings, mode="stage2")
-        return reconstructed_video
-
-    def encode_to_indices(self, inputs: np.ndarray):
-        _, result_dict = self.encode(inputs)
-        ids = result_dict["encoding_indices"]
-        return ids
-
-    def get_encoded_fmap_size(self, video_size):
-        return video_size // (2**self.config.vqvae.num_enc_res_blocks)
-
-    def construct(self, x):
+    def encode(
+        self,
+        x: ms.Tensor,
+    ):
         encode_first_frame_separately = (
             self.separate_first_frame_encoding and self.video_contains_first_frame
         )
 
         # whether to pad video or not
+        video_len = x.shape[2]
 
         if self.video_contains_first_frame:
             video_len = x.shape[2]
@@ -303,11 +259,13 @@ class VQVAE3D(nn.Cell):
             x = pad_at_dim(x, (self.time_padding, 0), dim=2)
 
         z_e = self.encoder(x)
-        z_e = self.pre_quantization_conv(z_e)
-        z_q, aux_loss = self.quantizer(z_e)
+        z_pq = self.pre_quantization_conv(z_e)
+        z_q, indices, aux_loss = self.quantizer(z_pq)
 
-        # decode
-        x_hat = self.decoder(z_q)
+        return z_e, z_q, indices, aux_loss
+
+    def decode(self, quantized: ms.Tensor):
+        x_hat = self.decoder(quantized)
 
         decode_first_frame_separately = (
             self.separate_first_frame_encoding and self.video_contains_first_frame
@@ -332,5 +290,40 @@ class VQVAE3D(nn.Cell):
 
             if self.video_contains_first_frame:
                 video = video[:, :, self.time_padding :]
+        return video
+
+    def tokenize(self, x):
+        self.set_train(False)
+        _, _, indices, _ = self.encode(x)
+        return indices
+
+    def get_encoded_fmap_size(self, video_size):
+        return video_size // (2**self.config.vqvae.num_enc_res_blocks)
+
+    def decode_from_code_indices(
+        self,
+        codes: ms.Tensor,
+        img_size: int,
+    ):
+        if codes.ndim == 2:
+            # video_code_len = codes.shape[-1]
+            # assert divisible_by(
+            #     video_code_len, self.fmap_size**2
+            # ), f"flattened video ids must have a length ({video_code_len}) that is divisible by the fmap size ({self.fmap_size}) squared ({self.fmap_size ** 2})"
+            fmap_size = self.get_encoded_fmap_size(img_size)
+            b, d = codes.shape
+            codes = codes.reshape(b, -1, fmap_size, fmap_size)
+
+        quantized = self.quantizers.indices_to_codes(codes)
+
+        return self.decode(quantized)
+
+    def construct(self, x):
+
+        # encode
+        z_e, z_q, _, aux_loss = self.encode(x)
+
+        # decode
+        video = self.decode(z_q)
 
         return z_e, z_q, video, aux_loss
