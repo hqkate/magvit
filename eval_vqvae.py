@@ -64,8 +64,14 @@ def main(args):
     set_logger(name="", output_dir=args.output_path, rank=0)
 
     config = get_config("B")
-    model = VQVAE3D(config, lookup_free_quantization=True, is_training=True)
-    # model.init_from_ckpt(args.ckpt_path)
+    model = VQVAE3D(
+        config,
+        lookup_free_quantization=True,
+        is_training=False,
+        video_contains_first_frame=True,
+        separate_first_frame_encoding=True,
+    )
+    model.init_from_ckpt(args.ckpt_path)
     logger.info(f"Loaded checkpoint from  {args.ckpt_path}")
 
     if args.eval_loss:
