@@ -15,7 +15,7 @@ from omegaconf import OmegaConf
 from videogvt.config.vqgan3d_magvit_v2_config import get_config
 from videogvt.data.loader import create_dataloader
 from videogvt.eval import calculate_psnr, calculate_ssim
-from videogvt.models.vqvae import LPIPS
+from videogvt.models.vqvae.lpips import LPIPS
 from videogvt.models.vqvae import VQVAE3D
 
 from PIL import Image
@@ -64,12 +64,14 @@ def main(args):
     set_logger(name="", output_dir=args.output_path, rank=0)
 
     config = get_config("B")
+    dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
     model = VQVAE3D(
         config,
         lookup_free_quantization=True,
         is_training=False,
         video_contains_first_frame=True,
         separate_first_frame_encoding=True,
+        dtype=dtype,
     )
     model.init_from_ckpt(args.ckpt_path)
     logger.info(f"Loaded checkpoint from  {args.ckpt_path}")
@@ -124,8 +126,8 @@ def main(args):
         mean_infer_time += infer_time
         logger.info(f"Infer time: {infer_time}")
 
-        generated_videos = postprocess(recons.asnumpy())
-        real_videos = postprocess(x.asnumpy())
+        generated_videos = postprocess(recons.float().asnumpy())
+        real_videos = postprocess(x.float().asnumpy())
 
         psnr_scores = list(
             calculate_psnr(real_videos, generated_videos)["value"].values()
@@ -139,7 +141,9 @@ def main(args):
 
         if args.eval_loss:
             recon_loss = np.abs((real_videos - generated_videos))
-            lpips_loss = lpips_loss_fn(_rearrange_in(x), _rearrange_in(recons)).asnumpy()
+            lpips_loss = lpips_loss_fn(
+                _rearrange_in(x), _rearrange_in(recons)
+            ).asnumpy()
             mean_recon += recon_loss.mean()
             mean_lpips += lpips_loss.mean()
 
@@ -199,6 +203,14 @@ def parse_args():
         default=0,
         type=int,
         help="Specify the mode: 0 for graph mode, 1 for pynative mode",
+    )
+    parser.add_argument(
+        "--dtype",
+        default="fp32",
+        type=str,
+        choices=["fp32", "fp16", "bf16"],
+        help="mixed precision type, if fp32, all layer precision is float32 (amp_level=O0), \
+                if bf16 or fp16, amp_level==O2, part of layers will compute in bf16 or fp16 such as matmul, dense, conv.",
     )
     parser.add_argument(
         "--device_target", type=str, default="Ascend", help="Ascend or GPU"
