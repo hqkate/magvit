@@ -83,7 +83,7 @@ class VQVAE3D(nn.Cell):
         embedding_dim = config.vqvae.embedding_dim
         in_dim = config.vqvae.channels
         h_dim = config.vqvae.filters
-        m_dim = config.vqvae.middle_channles
+        m_dim = config.vqvae.middle_channels
         beta = config.vqvae.commitment_cost
         temporal_downsample = config.vqvae.temporal_downsample
         time_downsample_factor = 2 ** (sum(temporal_downsample) - 1)

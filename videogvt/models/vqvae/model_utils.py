@@ -345,7 +345,7 @@ class SpatialDownsample2x(nn.Cell):
         x = self.conv(x)
 
         _, c, h, w = x.shape
-        x = x.resshape(b, t, c, h, w)
+        x = x.reshape(b, t, c, h, w)
         x = ops.permute(x, (0, 2, 1, 3, 4))
 
         return x

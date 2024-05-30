@@ -57,8 +57,8 @@ def get_config(config_str="MAGVIT-V2"):
     config.discriminator.num_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
 
     # Loss
-    config.lr_config.perceptual_weight = 0.1
-    config.lr_config.recons_weight = 5.0
+    config.lr_configs.perceptual_weight = 0.1
+    config.lr_configs.recons_weight = 5.0
     config.lr_configs.disc_weight = 0.1
     config.lr_configs.disc_start = 1
 
