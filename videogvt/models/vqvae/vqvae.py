@@ -136,7 +136,9 @@ class VQVAE3D(nn.Cell):
             )
             logger.info("Using Lookup Free Quantization.")
         else:
-            self.quantizer = VQ(self.codebook_size, embedding_dim, beta)
+            self.quantizer = VQ(
+                self.codebook_size, embedding_dim, beta, dtype=dtype
+            ).to_float(dtype)
             logger.info("Using basic Vector Quantization.")
 
         if save_img_embedding_map:
@@ -319,7 +321,6 @@ class VQVAE3D(nn.Cell):
         return self.decode(quantized)
 
     def construct(self, x):
-
         # encode
         z_e, z_q, _, aux_loss = self.encode(x)
 

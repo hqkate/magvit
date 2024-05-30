@@ -86,7 +86,7 @@ def main(args):
     # 2. build models
     #  vqvae (G)
     model_config = get_config("B")
-    dtype = {"fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
+    dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
     vqvae = VQVAE3D(
         model_config,
         lookup_free_quantization=True,
@@ -130,7 +130,12 @@ def main(args):
     # 3. build net with loss (core)
     # G with loss
     vqvae_with_loss = GeneratorWithLoss(
-        vqvae, discriminator=disc, **model_config.lr_configs, dtype=dtype
+        vqvae,
+        discriminator=disc,
+        **model_config.lr_configs,
+        dtype=dtype,
+        perceptual_weight=0.1,
+        recons_weight=5.0,
     )
     disc_start = model_config.lr_configs.disc_start
 
@@ -213,22 +218,13 @@ def main(args):
     else:
         vqvae_params_to_update = vqvae_with_loss.vqvae.trainable_params()
 
-    # optim_vqvae = create_optimizer(
-    #     vqvae_params_to_update,
-    #     name=args.optim,
-    #     betas=args.betas,
-    #     group_strategy=args.group_strategy,
-    #     weight_decay=args.weight_decay,
-    #     lr=lr,
-    # )
-
     optim_vqvae = create_optimizer(
         vqvae_params_to_update,
         opt=args.optim,
         weight_decay=args.weight_decay,
         lr=lr,
-        eps=1e-04,
-        beta1=0.001,
+        eps=1e-08,
+        beta1=0.5,
         beta2=0.99,
     )
 

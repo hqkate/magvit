@@ -408,7 +408,6 @@ class MAGVIT(nn.Cell):
         self_cond_embed = None
 
         if self.transformer.self_cond and random() < self.self_cond_prob:
-
             _, self_cond_embed = ops.stop_gradient(
                 self.transformer(
                     x,
