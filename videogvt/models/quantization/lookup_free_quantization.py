@@ -274,7 +274,7 @@ class LFQ(nn.Cell):
         # commit loss
 
         if self.training:
-            commit_loss = ops.mse_loss(original_input, quantized, reduction="none")
+            commit_loss = ops.mse_loss(original_input, ops.stop_gradient(quantized), reduction="none")
             commit_loss = commit_loss.mean()
         else:
             commit_loss = ms.Tensor(0.0)
