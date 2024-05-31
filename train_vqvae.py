@@ -91,8 +91,8 @@ def main(args):
         model_config,
         lookup_free_quantization=True,
         is_training=True,
-        video_contains_first_frame=True,
-        separate_first_frame_encoding=True,
+        video_contains_first_frame=args.contains_first_frame,
+        separate_first_frame_encoding=args.separate_first_frame_encoding,
         dtype=dtype,
     )
     if args.pretrained is not None:

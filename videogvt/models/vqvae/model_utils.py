@@ -114,10 +114,10 @@ class CausalConv3d(nn.Cell):
         width_pad = width_kernel_size // 2
 
         self.time_pad = time_pad
-        self.time_causal_padding = (
+        self.padding = (
             (0, 0),
             (0, 0),
-            (time_pad, 0),
+            (0, 0),
             (height_pad, height_pad),
             (width_pad, width_pad),
         )
@@ -138,8 +138,14 @@ class CausalConv3d(nn.Cell):
 
     def construct(self, x):
         # x: (bs, Cin, T, H, W )
-        op_pad = ops.Pad(self.time_causal_padding)
+        op_pad = ops.Pad(self.padding)
         x = op_pad(x)
+
+        if self.time_pad > 0:
+            first_frame = x[:, :, :1, :, :]
+            first_frame_pad = ops.cat([first_frame] * self.time_pad, axis=2)
+            x = ops.cat((first_frame_pad, x), axis=2)
+
         x = self.conv(x)
 
         return x

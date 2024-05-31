@@ -33,8 +33,6 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqgan.model_type = model_type
 
     config.vqvae.architecture = "3dcnn"
-    config.vqvae.video_contains_first_frame = True
-    config.vqvae.separate_first_frame_encoding = True
     config.vqvae.channels = 3
     config.vqvae.middle_channels = 18
     config.vqvae.codebook_size = 1024

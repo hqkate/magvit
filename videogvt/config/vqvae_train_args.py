@@ -114,6 +114,8 @@ def parse_args():
     parser.add_argument(
         "--frame_stride", default=1, type=int, help="frame sampling stride"
     )
+    parser.add_argument("--contains_first_frame", default=True, type=str2bool, help="Specify if the video contains the first frame.")
+    parser.add_argument("--separate_first_frame_encoding", default=True, type=str2bool, help="Specify if to encode the first frame separately.")
 
     # optim
     parser.add_argument(
