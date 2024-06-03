@@ -133,9 +133,7 @@ def main(args):
         vqvae,
         discriminator=disc,
         **model_config.lr_configs,
-        dtype=dtype,
-        perceptual_weight=0.1,
-        recons_weight=5.0,
+        dtype=dtype
     )
     disc_start = model_config.lr_configs.disc_start
 
