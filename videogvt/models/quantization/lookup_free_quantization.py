@@ -48,6 +48,27 @@ def entropy(prob):
     return (-prob * log(prob)).sum(axis=-1)
 
 
+# cosine sim linear
+
+
+class CosineSimLinear(nn.Cell):
+    def __init__(
+        self,
+        dim_in,
+        dim_out,
+        scale=1.0,
+        dtype=ms.float32,
+    ):
+        super().__init__()
+        self.scale = scale
+        self.weight = ms.Parameter(ops.randn((dim_in, dim_out), dtype=dtype))
+
+    def construct(self, x):
+        x = ops.L2Normalize(axis=-1, epsilon=1e-12)(x)
+        w = ops.L2Normalize(axis=0, epsilon=1e-12)(self.weight)
+        return (x @ w) * self.scale
+
+
 # class
 
 
@@ -64,6 +85,8 @@ class LFQ(nn.Cell):
         keep_num_codebooks_dim=None,
         codebook_scale=1.0,  # for residual LFQ, codebook scaled down by 2x at each layer
         frac_per_sample_entropy=1.0,  # make less than 1. to only use a random fraction of the probs for per sample entropy
+        cosine_sim_project_in=False,
+        cosine_sim_project_in_scale=None,
         return_loss_breakdown=False,
         is_training=False,
         dtype=ms.float32,
@@ -85,12 +108,18 @@ class LFQ(nn.Cell):
         codebook_dims = codebook_dim * num_codebooks
         dim = default(dim, codebook_dims)
 
+        if cosine_sim_project_in:
+            cosine_sim_project_in_scale = default(
+                cosine_sim_project_in_scale, codebook_scale
+            )
+            project_in_klass = CosineSimLinear(
+                dim, codebook_dims, scale=cosine_sim_project_in_scale
+            )
+        else:
+            project_in_klass = nn.Dense(dim, codebook_dims, dtype=dtype)
+
         has_projections = dim != codebook_dims
-        self.project_in = (
-            nn.Dense(dim, codebook_dims, dtype=dtype)
-            if has_projections
-            else nn.Identity()
-        )
+        self.project_in = project_in_klass if has_projections else nn.Identity()
         self.project_out = (
             nn.Dense(codebook_dims, dim, dtype=dtype)
             if has_projections
@@ -274,7 +303,9 @@ class LFQ(nn.Cell):
         # commit loss
 
         if self.training:
-            commit_loss = ops.mse_loss(original_input, ops.stop_gradient(quantized), reduction="none")
+            commit_loss = ops.mse_loss(
+                original_input, ops.stop_gradient(quantized), reduction="none"
+            )
             commit_loss = commit_loss.mean()
         else:
             commit_loss = ms.Tensor(0.0)

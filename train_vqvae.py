@@ -89,7 +89,7 @@ def main(args):
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
     vqvae = VQVAE3D(
         model_config,
-        lookup_free_quantization=True,
+        quantization="lfq",
         is_training=True,
         video_contains_first_frame=args.contains_first_frame,
         separate_first_frame_encoding=args.separate_first_frame_encoding,
@@ -130,10 +130,7 @@ def main(args):
     # 3. build net with loss (core)
     # G with loss
     vqvae_with_loss = GeneratorWithLoss(
-        vqvae,
-        discriminator=disc,
-        **model_config.lr_configs,
-        dtype=dtype
+        vqvae, discriminator=disc, **model_config.lr_configs, dtype=dtype
     )
     disc_start = model_config.lr_configs.disc_start
 

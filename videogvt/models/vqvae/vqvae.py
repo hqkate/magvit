@@ -1,10 +1,11 @@
 import logging
+from math import log2
 
 import mindspore as ms
 import numpy as np
 from mindspore import nn, ops
 
-from videogvt.models.quantization import VQ, LFQ
+from videogvt.models.quantization import VQ, LFQ, FSQ
 from videogvt.models.vqvae.encoder import Encoder, Encoder3D
 from videogvt.models.vqvae.decoder import Decoder, Decoder3D
 from videogvt.models.vqvae.model_utils import SameConv2d, pad_at_dim, CausalConv3d
@@ -61,8 +62,8 @@ class VQVAE3D(nn.Cell):
     def __init__(
         self,
         config,
+        quantization="lfq",
         save_img_embedding_map=False,
-        lookup_free_quantization=False,
         video_contains_first_frame=False,
         separate_first_frame_encoding=False,
         is_training=False,
@@ -126,20 +127,31 @@ class VQVAE3D(nn.Cell):
         )
 
         # pass continuous latent vector through discretization bottleneck
-        if lookup_free_quantization:
+        if quantization == "lfq":
             self.quantizer = LFQ(
                 dim=m_dim,
                 codebook_size=self.codebook_size,
+                cosine_sim_project_in=True,
                 return_loss_breakdown=False,
                 is_training=is_training,
                 dtype=dtype,
             )
             logger.info("Using Lookup Free Quantization.")
-        else:
+
+        elif quantization == "vq":
             self.quantizer = VQ(
                 self.codebook_size, embedding_dim, beta, dtype=dtype
             ).to_float(dtype)
             logger.info("Using basic Vector Quantization.")
+
+        elif quantization == "fsq":
+            self.quantizer = FSQ(
+                levels=[2] * int(log2(self.codebook_size)), dim=m_dim, dtype=dtype
+            ).to_float(dtype)
+            logger.info("Using basic Finite Scalar Quantization.")
+
+        else:
+            raise NotImplementedError(f"Unknown quantizer: {quantization}")
 
         if save_img_embedding_map:
             self.img_to_embedding_map = {i: [] for i in range(self.codebook_size)}
