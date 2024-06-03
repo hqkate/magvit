@@ -85,6 +85,7 @@ class LFQ(nn.Cell):
         keep_num_codebooks_dim=None,
         codebook_scale=1.0,  # for residual LFQ, codebook scaled down by 2x at each layer
         frac_per_sample_entropy=1.0,  # make less than 1. to only use a random fraction of the probs for per sample entropy
+        soft_clamp_input_value=None,
         cosine_sim_project_in=False,
         cosine_sim_project_in_scale=None,
         return_loss_breakdown=False,
@@ -155,6 +156,14 @@ class LFQ(nn.Cell):
         # commitment loss
 
         self.commitment_loss_weight = commitment_loss_weight
+
+        # whether to soft clamp the input value from -value to value
+
+        self.soft_clamp_input_value = soft_clamp_input_value
+        assert (
+            not exists(soft_clamp_input_value)
+            or soft_clamp_input_value >= codebook_scale
+        )
 
         # for no auxiliary loss, during inference
 
@@ -233,6 +242,12 @@ class LFQ(nn.Cell):
         ), f"expected dimension of {self.dim} but received {x.shape[-1]}"
 
         x = self.project_in(x)
+
+        # maybe soft clamp
+
+        if exists(self.soft_clamp_input_value):
+            clamp_value = self.soft_clamp_input_value
+            x = (x / clamp_value).tanh() * clamp_value
 
         # split out number of codebooks
 

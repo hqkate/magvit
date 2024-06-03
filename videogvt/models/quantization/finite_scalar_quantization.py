@@ -27,7 +27,7 @@ def default(*args):
 # tensor helpers
 
 
-def round_ste(z: Tensor) -> Tensor:
+def round_ste(z: ms.Tensor) -> ms.Tensor:
     """Round with straight through gradients."""
     zhat = z.round()
     return z + ops.stop_gradient(zhat - z)
