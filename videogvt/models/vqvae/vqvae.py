@@ -148,7 +148,7 @@ class VQVAE3D(nn.Cell):
             self.quantizer = FSQ(
                 levels=[2] * int(log2(self.codebook_size)), dim=m_dim, dtype=dtype
             ).to_float(dtype)
-            logger.info("Using basic Finite Scalar Quantization.")
+            logger.info("Using Finite Scalar Quantization.")
 
         else:
             raise NotImplementedError(f"Unknown quantizer: {quantization}")

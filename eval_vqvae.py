@@ -67,7 +67,7 @@ def main(args):
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
     model = VQVAE3D(
         config,
-        lookup_free_quantization=True,
+        quantization="lfq",
         is_training=False,
         video_contains_first_frame=True,
         separate_first_frame_encoding=True,

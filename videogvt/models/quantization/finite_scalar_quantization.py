@@ -98,14 +98,14 @@ class FSQ(nn.Cell):
 
     def bound(self, z, eps: float = 1e-3):
         """Bound `z`, an array of shape (..., d)."""
-        half_l = (self._levels - 1) * (1 + eps) / 2
-        offset = ops.where(self._levels % 2 == 0, ms.Tensor(0.5), ms.Tensor(0.0))
-        shift = (offset / half_l).atanh()
-        return (z + shift).tanh() * half_l - offset
+        half_l = (self._levels - 1).float().to(self.dtype) * (1.0 + eps) / 2.0
+        offset = ops.where(self._levels % 2 == 0, ms.Tensor(0.5, self.dtype), ms.Tensor(0.0, self.dtype))
+        shift = ops.atanh(offset / half_l)
+        return ops.tanh(z + shift) * half_l - offset
 
     def quantize(self, z):
         """Quantizes z, returns quantized zhat, same shape as z."""
-        quantized = round_ste(self.bound(z))
+        quantized = round_ste(self.bound(z, eps=0.01))
         half_width = self._levels // 2  # Renormalize to [-1, 1].
         return quantized / half_width
 
