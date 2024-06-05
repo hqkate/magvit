@@ -35,6 +35,13 @@ def parse_args():
         help="model arch config",
     )
     parser.add_argument(
+        "--model_class",
+        default="magvit",
+        type=str,
+        choices=["magvit", "opensora",],
+        help="model arch type",
+    )
+    parser.add_argument(
         "--pretrained",
         default=None,
         type=str,

@@ -1,2 +1,2 @@
-from .vqvae import VQVAE, VQVAE3D
+from .vqvae import VQVAE, VQVAE3D, VQVAEOpenSora
 from .discriminator import StyleGANDiscriminator

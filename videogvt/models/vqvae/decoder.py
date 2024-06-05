@@ -13,6 +13,7 @@ from videogvt.models.vqvae.model_utils import (
     nonlinearity,
     _get_selected_flags,
 )
+from videogvt.models.vqvae.atten import AttentionResidualBlock
 
 
 class Decoder(nn.Cell):
@@ -104,7 +105,9 @@ class Decoder3D(nn.Cell):
         # self.conv_out = CausalConv3d(
         #     self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=dtype
         # )
-        self.norm = GroupNormExtend(num_groups=32, num_channels=self.filters, dtype=dtype)
+        self.norm = GroupNormExtend(
+            num_groups=32, num_channels=self.filters, dtype=dtype
+        )
         self.residual_stack = nn.SequentialCell()
 
         num_blocks = len(self.channel_multipliers)
@@ -177,6 +180,60 @@ class Decoder3D(nn.Cell):
         # x = self.conv_out(x)
         return x
 
+
+class DecoderOpenSora(nn.Cell):
+    def __init__(self, config, dtype=ms.float32):
+        super(DecoderOpenSora).__init__()
+
+        self.config = config
+        n_hiddens = 224
+        n_res_layers = 4
+
+        self.time_res_stack = nn.SequentialCell(
+            *[
+                AttentionResidualBlock(n_hiddens, dtype=dtype)
+                for _ in range(n_res_layers)
+            ],
+            GroupNormExtend(
+                num_groups=32, num_channels=n_hiddens, dtype=dtype
+            ),  # nn.BatchNorm3d(n_hiddens),
+            nn.ReLU(),
+        )
+        time_downsample = 2
+        self.time_conv = nn.CellList()
+        for i in range(time_downsample):
+            convt = TimeUpsample2x(n_hiddens, n_hiddens, dtype=dtype)
+            self.time_conv.append(convt)
+        self.spatial_res_stack = nn.SequentialCell(
+            *[
+                AttentionResidualBlock(n_hiddens, dtype=dtype)
+                for _ in range(n_res_layers)
+            ],
+            GroupNormExtend(
+                num_groups=32, num_channels=n_hiddens, dtype=dtype
+            ),  # nn.BatchNorm3d(n_hiddens),
+            nn.ReLU(),
+        )
+        spatial_downsample = 3
+        self.spatial_conv = nn.CellList()
+        for i in range(spatial_downsample):
+            out_channels = 3 if i == spatial_downsample - 1 else n_hiddens
+            convt = SpatialUpsample2x(n_hiddens, out_channels, dtype=dtype)
+            self.spatial_conv.append(convt)
+
+    def construct(self, x):
+        h = self.time_res_stack(x)
+
+        for conv in self.time_conv:
+            h = ops.relu(conv(h))
+
+        h = self.spatial_res_stack(h)
+
+        for i, conv in enumerate(self.spatial_conv):
+            h = conv(h)
+            if i < len(self.spatial_conv) - 1:
+                h = ops.relu(h)
+        return h
 
 
 if __name__ == "__main__":

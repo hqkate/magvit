@@ -12,7 +12,7 @@ from omegaconf import OmegaConf
 from videogvt.config.vqgan3d_magvit_v2_config import get_config
 from videogvt.config.vqvae_train_args import parse_args
 from videogvt.data.loader import create_dataloader
-from videogvt.models.vqvae import VQVAE3D, StyleGANDiscriminator
+from videogvt.models.vqvae import VQVAE3D, VQVAEOpenSora, StyleGANDiscriminator
 from videogvt.models.vqvae.net_with_loss import DiscriminatorWithLoss, GeneratorWithLoss
 
 import mindspore as ms
@@ -87,7 +87,8 @@ def main(args):
     #  vqvae (G)
     model_config = get_config("B")
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-    vqvae = VQVAE3D(
+    model_class = {"magvit": VQVAE3D, "opensora": VQVAEOpenSora}[args.model_class]
+    vqvae = model_class(
         model_config,
         quantization="lfq",
         is_training=True,

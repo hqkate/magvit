@@ -6,8 +6,8 @@ import numpy as np
 from mindspore import nn, ops
 
 from videogvt.models.quantization import VQ, LFQ, FSQ
-from videogvt.models.vqvae.encoder import Encoder, Encoder3D
-from videogvt.models.vqvae.decoder import Decoder, Decoder3D
+from videogvt.models.vqvae.encoder import Encoder, Encoder3D, EncoderOpenSora
+from videogvt.models.vqvae.decoder import Decoder, Decoder3D, DecoderOpenSora
 from videogvt.models.vqvae.model_utils import SameConv2d, pad_at_dim, CausalConv3d
 
 
@@ -340,3 +340,28 @@ class VQVAE3D(nn.Cell):
         video = self.decode(z_q)
 
         return z_e, z_q, video, aux_loss
+
+
+class VQVAEOpenSora(VQVAE3D):
+    def __init__(
+        self,
+        config,
+        quantization="lfq",
+        save_img_embedding_map=False,
+        video_contains_first_frame=False,
+        separate_first_frame_encoding=False,
+        is_training=False,
+        dtype=ms.float32,
+    ):
+        super().__init__(
+            config,
+            quantization,
+            save_img_embedding_map,
+            video_contains_first_frame,
+            separate_first_frame_encoding,
+            is_training,
+            dtype,
+        )
+
+        self.encoder = EncoderOpenSora(config, dtype=dtype)
+        self.decoder = EncoderOpenSora(config, dtype=dtype)

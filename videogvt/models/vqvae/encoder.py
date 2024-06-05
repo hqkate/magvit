@@ -12,6 +12,7 @@ from videogvt.models.vqvae.model_utils import (
     nonlinearity,
     _get_selected_flags,
 )
+from videogvt.models.vqvae.atten import AttentionResidualBlock
 
 
 class Encoder(nn.Cell):
@@ -165,6 +166,59 @@ class Encoder3D(nn.Cell):
         x = nonlinearity(x)
         x = self.conv_out(x)
         return x
+
+
+class EncoderOpenSora(nn.Cell):
+    def __init__(self, config, dtype=ms.float32):
+        super(EncoderOpenSora, self).__init__()
+
+        self.config = config
+        self.dtype = dtype
+
+        n_hiddens = 224
+        n_res_layers = 4
+
+        spatial_downsample = 3
+        self.spatial_conv = nn.CellList()
+        for i in range(spatial_downsample):
+            in_channels = 3 if i == 0 else n_hiddens
+            conv = SpatialDownsample2x(in_channels, n_hiddens)
+            self.spatial_conv.append(conv)
+        self.spatial_res_stack = nn.SequentialCell(
+            *[
+                AttentionResidualBlock(n_hiddens, dtype=dtype)
+                for _ in range(n_res_layers)
+            ],
+            GroupNormExtend(
+                num_groups=32, num_channels=n_hiddens, dtype=dtype
+            ),  # nn.BatchNorm3d(n_hiddens),
+            nn.ReLU(),
+        )
+        time_downsample = 2
+        self.time_conv = nn.CellList()
+        for i in range(time_downsample):
+            conv = TimeDownsample2x(n_hiddens, n_hiddens)
+            self.time_conv.append(conv)
+        self.time_res_stack = nn.SequentialCell(
+            *[
+                AttentionResidualBlock(n_hiddens, dtype=dtype)
+                for _ in range(n_res_layers)
+            ],
+            GroupNormExtend(
+                num_groups=32, num_channels=n_hiddens, dtype=dtype
+            ),  # nn.BatchNorm3d(n_hiddens),
+            nn.ReLU(),
+        )
+
+    def construct(self, x):
+        h = x
+        for conv in self.spatial_conv:
+            h = ops.relu(conv(h))
+        h = self.spatial_res_stack(h)
+        for conv in self.time_conv:
+            h = ops.relu(conv(h))
+        h = self.time_res_stack(h)
+        return h
 
 
 if __name__ == "__main__":
