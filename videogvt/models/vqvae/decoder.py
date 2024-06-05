@@ -161,9 +161,11 @@ class Decoder3D(nn.Cell):
                             self.residual_stack.append(
                                 TimeUpsample2x(filters, filters, dtype=dtype)
                             )
+                            self.residual_stack.append(nn.ReLU())
                         self.residual_stack.append(
                             SpatialUpsample2x(filters, filters, dtype=dtype)
                         )
+                        self.residual_stack.append(nn.ReLU())
                     else:
                         raise NotImplementedError(f"Unknown upsampler: {self.upsample}")
 
@@ -183,10 +185,11 @@ class Decoder3D(nn.Cell):
 
 class DecoderOpenSora(nn.Cell):
     def __init__(self, config, dtype=ms.float32):
-        super(DecoderOpenSora).__init__()
+        super(DecoderOpenSora, self).__init__()
 
         self.config = config
         n_hiddens = 224
+        n_middle = config.vqvae.filters
         n_res_layers = 4
 
         self.time_res_stack = nn.SequentialCell(
@@ -217,7 +220,7 @@ class DecoderOpenSora(nn.Cell):
         spatial_downsample = 3
         self.spatial_conv = nn.CellList()
         for i in range(spatial_downsample):
-            out_channels = 3 if i == spatial_downsample - 1 else n_hiddens
+            out_channels = n_middle if i == spatial_downsample - 1 else n_hiddens
             convt = SpatialUpsample2x(n_hiddens, out_channels, dtype=dtype)
             self.spatial_conv.append(convt)
 

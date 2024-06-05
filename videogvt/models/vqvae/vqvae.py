@@ -353,6 +353,9 @@ class VQVAEOpenSora(VQVAE3D):
         is_training=False,
         dtype=ms.float32,
     ):
+
+        config.vqvae.middle_channels = 224
+
         super().__init__(
             config,
             quantization,
@@ -364,4 +367,4 @@ class VQVAEOpenSora(VQVAE3D):
         )
 
         self.encoder = EncoderOpenSora(config, dtype=dtype)
-        self.decoder = EncoderOpenSora(config, dtype=dtype)
+        self.decoder = DecoderOpenSora(config, dtype=dtype)

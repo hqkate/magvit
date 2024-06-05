@@ -89,6 +89,7 @@ class CausalConv3d(nn.Cell):
         chan_out,
         kernel_size: Union[int, Tuple[int, int, int]],
         padding: int = 0,
+        has_bias: bool = True,
         dtype=ms.float32,
         **kwargs,
     ):
@@ -131,7 +132,7 @@ class CausalConv3d(nn.Cell):
             kernel_size,
             stride=stride,
             dilation=dilation,
-            has_bias=True,
+            has_bias=has_bias,
             pad_mode="pad",
             **kwargs,
         ).to_float(dtype)

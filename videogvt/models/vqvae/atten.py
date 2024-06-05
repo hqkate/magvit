@@ -105,7 +105,7 @@ class AxialAttention(nn.Cell):
 
 # Copied from https://github.com/wilson1yan/VideoGPT
 class MultiHeadAttention(nn.Cell):
-    def __init__(self, shape, dim_q, dim_kv, n_head, n_layer, causal, attn_kwargs):
+    def __init__(self, shape, dim_q, dim_kv, n_head, n_layer, causal, attn_kwargs, dtype=ms.float32):
         super().__init__()
         self.causal = causal
         self.shape = shape
@@ -117,36 +117,40 @@ class MultiHeadAttention(nn.Cell):
         self.w_qs = nn.Dense(
             dim_q,
             n_head * self.d_k,
-            bias=False,
+            has_bias=False,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_q)),
+            dtype=dtype
         )  # q
         # self.w_qs.weight.data.normal_(std=1.0 / np.sqrt(dim_q))
 
         self.w_ks = nn.Dense(
             dim_kv,
             n_head * self.d_k,
-            bias=False,
+            has_bias=False,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_kv)),
+            dtype=dtype
         )  # k
         # self.w_ks.weight.data.normal_(std=1.0 / np.sqrt(dim_kv))
 
         self.w_vs = nn.Dense(
             dim_kv,
             n_head * self.d_v,
-            bias=False,
+            has_bias=False,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_kv)),
+            dtype=dtype
         )  # v
         # self.w_vs.weight.data.normal_(std=1.0 / np.sqrt(dim_kv))
 
         self.fc = nn.Dense(
             n_head * self.d_v,
             dim_q,
-            bias=True,
+            has_bias=True,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_q * n_layer)),
+            dtype=dtype
         )  # c
         # self.fc.weight.data.normal_(std=1.0 / np.sqrt(dim_q * n_layer))
 
-        self.attn = AxialAttention(len(shape), causal=causal, **attn_kwargs)
+        self.attn = AxialAttention(len(shape), causal=causal, dtype=dtype, **attn_kwargs)
 
         self.cache = None
 
@@ -206,7 +210,7 @@ class MultiHeadAttention(nn.Cell):
 
 # Modified from https://github.com/wilson1yan/VideoGPT
 class AxialBlock(nn.Cell):
-    def __init__(self, n_hiddens, n_head):
+    def __init__(self, n_hiddens, n_head, dtype=ms.float32):
         super().__init__()
         kwargs = dict(
             shape=(0,) * 3,
@@ -216,10 +220,10 @@ class AxialBlock(nn.Cell):
             n_layer=1,
             causal=False,
         )
-        self.attn_w = MultiHeadAttention(attn_kwargs=dict(axial_dim=-2), **kwargs)
-        self.attn_h = MultiHeadAttention(attn_kwargs=dict(axial_dim=-3), **kwargs)
+        self.attn_w = MultiHeadAttention(attn_kwargs=dict(axial_dim=-2), **kwargs, dtype=dtype)
+        self.attn_h = MultiHeadAttention(attn_kwargs=dict(axial_dim=-3), **kwargs, dtype=dtype)
         kwargs["causal"] = True
-        self.attn_t = MultiHeadAttention(attn_kwargs=dict(axial_dim=-4), **kwargs)
+        self.attn_t = MultiHeadAttention(attn_kwargs=dict(axial_dim=-4), **kwargs, dtype=dtype)
 
     def construct(self, x):
         x = shift_dim(x, 1, -1)
@@ -232,22 +236,22 @@ class AxialBlock(nn.Cell):
 class AttentionResidualBlock(nn.Cell):
     def __init__(self, n_hiddens, n_heads: int = 2, dtype=ms.float32):
         super().__init__()
-        self.block = nn.Sequential(
+        self.block = nn.SequentialCell(
             GroupNormExtend(
                 num_groups=32, num_channels=n_hiddens, dtype=dtype
             ),  # nn.BatchNorm3d(n_hiddens),
             nn.ReLU(),
-            CausalConv3d(n_hiddens, n_hiddens // 2, 3, bias=False),
+            CausalConv3d(n_hiddens, n_hiddens // 2, 3, has_bias=False),
             GroupNormExtend(
                 num_groups=16, num_channels=n_hiddens // 2, dtype=dtype
             ),  # nn.BatchNorm3d(n_hiddens // 2),
             nn.ReLU(),
-            CausalConv3d(n_hiddens // 2, n_hiddens, 1, bias=False),
+            CausalConv3d(n_hiddens // 2, n_hiddens, 1, has_bias=False),
             GroupNormExtend(
                 num_groups=32, num_channels=n_hiddens, dtype=dtype
             ),  # nn.BatchNorm3d(n_hiddens),
             nn.ReLU(),
-            AxialBlock(n_hiddens, n_heads),
+            AxialBlock(n_hiddens, n_heads, dtype=dtype),
         ).to_float(dtype)
 
     def construct(self, x):

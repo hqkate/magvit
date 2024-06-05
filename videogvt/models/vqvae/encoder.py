@@ -175,14 +175,15 @@ class EncoderOpenSora(nn.Cell):
         self.config = config
         self.dtype = dtype
 
+        n_in = config.vqvae.filters
         n_hiddens = 224
         n_res_layers = 4
 
         spatial_downsample = 3
         self.spatial_conv = nn.CellList()
         for i in range(spatial_downsample):
-            in_channels = 3 if i == 0 else n_hiddens
-            conv = SpatialDownsample2x(in_channels, n_hiddens)
+            in_channels = n_in if i == 0 else n_hiddens
+            conv = SpatialDownsample2x(in_channels, n_hiddens, dtype=dtype)
             self.spatial_conv.append(conv)
         self.spatial_res_stack = nn.SequentialCell(
             *[
@@ -197,7 +198,7 @@ class EncoderOpenSora(nn.Cell):
         time_downsample = 2
         self.time_conv = nn.CellList()
         for i in range(time_downsample):
-            conv = TimeDownsample2x(n_hiddens, n_hiddens)
+            conv = TimeDownsample2x(n_hiddens, n_hiddens, dtype=dtype)
             self.time_conv.append(conv)
         self.time_res_stack = nn.SequentialCell(
             *[

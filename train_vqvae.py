@@ -252,6 +252,8 @@ def main(args):
         EMA(
             vqvae_with_loss.vqvae,
             ema_decay=args.ema_decay,
+            offloading=False,
+            dtype=dtype
         ).to_float(dtype)
         if args.use_ema
         else None
