@@ -131,7 +131,7 @@ class VQVAE3D(nn.Cell):
             self.quantizer = LFQ(
                 dim=m_dim,
                 codebook_size=self.codebook_size,
-                cosine_sim_project_in=True,
+                cosine_sim_project_in=False,
                 return_loss_breakdown=False,
                 is_training=is_training,
                 dtype=dtype,
