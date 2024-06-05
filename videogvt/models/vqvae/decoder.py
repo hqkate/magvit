@@ -104,7 +104,7 @@ class Decoder3D(nn.Cell):
         # self.conv_out = CausalConv3d(
         #     self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=dtype
         # )
-        self.norm = GroupNormExtend(self.filters, self.filters, dtype=dtype)
+        self.norm = GroupNormExtend(num_groups=32, num_channels=self.filters, dtype=dtype)
         self.residual_stack = nn.SequentialCell()
 
         num_blocks = len(self.channel_multipliers)
@@ -166,7 +166,7 @@ class Decoder3D(nn.Cell):
 
                 # Adaptive GroupNorm
                 self.residual_stack.append(
-                    GroupNormExtend(filters, filters, dtype=dtype)
+                    GroupNormExtend(num_groups=32, num_channels=filters, dtype=dtype)
                 )
 
     def construct(self, x):
@@ -176,6 +176,7 @@ class Decoder3D(nn.Cell):
         x = nonlinearity(x)
         # x = self.conv_out(x)
         return x
+
 
 
 if __name__ == "__main__":

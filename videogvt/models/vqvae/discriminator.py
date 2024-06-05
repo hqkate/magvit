@@ -130,7 +130,7 @@ class ResBlockDown(nn.Cell):
         self.norm1 = GroupNormExtend(
             num_groups=32,
             num_channels=self.out_channels,
-            eps=1e-6,
+            eps=1e-5,
             affine=True,
             dtype=dtype,
         )
@@ -141,7 +141,7 @@ class ResBlockDown(nn.Cell):
         self.norm2 = GroupNormExtend(
             num_groups=32,
             num_channels=self.out_channels,
-            eps=1e-6,
+            eps=1e-5,
             affine=True,
             dtype=dtype,
         )
@@ -215,7 +215,7 @@ class StyleGANDiscriminator(nn.Cell):
 
         dim_out = self.filters * self.channel_multipliers[-1]
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=dim_out, eps=1e-6, affine=True, dtype=dtype
+            num_groups=32, num_channels=dim_out, eps=1e-5, affine=True, dtype=dtype
         )
         self.conv_out = nn.Conv3d(dim_out, dim_out, (3, 3, 3)).to_float(dtype)
         # self.activation2 = nn.LeakyReLU()

@@ -183,7 +183,7 @@ def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
         return GroupNormExtend(
             num_groups=num_groups,
             num_channels=in_channels,
-            eps=1e-6,
+            eps=1e-5,
             affine=True,
             dtype=dtype,
         )
@@ -191,7 +191,7 @@ def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
         return nn.GroupNorm(
             num_groups=num_groups,
             num_channels=in_channels,
-            eps=1e-6,
+            eps=1e-5,
             affine=True,
             dtype=dtype,
         )
@@ -554,11 +554,11 @@ class ResnetBlock3D(nn.Cell):
 
         # FIXME: GroupNorm precision mismatch with PT.
         self.norm1 = GroupNormExtend(
-            num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
+            num_groups=32, num_channels=in_channels, eps=1e-5, affine=True, dtype=dtype
         )
         self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1, dtype=dtype)
         self.norm2 = GroupNormExtend(
-            num_groups=32, num_channels=out_channels, eps=1e-6, affine=True, dtype=dtype
+            num_groups=32, num_channels=out_channels, eps=1e-5, affine=True, dtype=dtype
         )
         self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1, dtype=dtype)
         if self.in_channels != self.out_channels:

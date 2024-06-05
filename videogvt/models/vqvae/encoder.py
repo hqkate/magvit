@@ -117,7 +117,7 @@ class Encoder3D(nn.Cell):
             dtype=dtype,
         )
         self.residual_stack = nn.SequentialCell()
-        self.norm = GroupNormExtend(dim_gp, dim_gp, dtype=dtype)
+        self.norm = GroupNormExtend(num_groups=32, num_channels=dim_gp, dtype=dtype)
 
         num_blocks = len(self.channel_multipliers)
         for i in range(num_blocks):
