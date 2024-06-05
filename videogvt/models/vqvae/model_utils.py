@@ -395,7 +395,7 @@ class SpatialUpsample2x(nn.Cell):
 
         x = self.conv(x)
 
-        x = ops.reshape(x, (b, t, c, hw_out[0], hw_out[1]))
+        x = ops.reshape(x, (b, t, self.chan_out, hw_out[0], hw_out[1]))
         x = ops.permute(x, (0, 2, 1, 3, 4))
 
         return x
