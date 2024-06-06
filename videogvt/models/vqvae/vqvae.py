@@ -122,10 +122,6 @@ class VQVAE3D(nn.Cell):
         self.time_downsample_factor = time_downsample_factor
         self.time_padding = time_downsample_factor - 1
 
-        self.pre_quantization_conv = nn.Conv3d(
-            m_dim, m_dim, kernel_size=1, stride=1, has_bias=True, dtype=dtype
-        )
-
         # pass continuous latent vector through discretization bottleneck
         if quantization == "lfq":
             self.quantizer = LFQ(
@@ -273,10 +269,8 @@ class VQVAE3D(nn.Cell):
             x = pad_at_dim(x, (self.time_padding, 0), dim=2)
 
         z_e = self.encoder(x)
-        z_pq = self.pre_quantization_conv(z_e)
-        z_q, indices, aux_loss = self.quantizer(z_pq)
 
-        return z_e, z_q, indices, aux_loss
+        return z_e
 
     def decode(self, quantized: ms.Tensor):
         x_hat = self.decoder(quantized)
@@ -308,7 +302,8 @@ class VQVAE3D(nn.Cell):
 
     def tokenize(self, x):
         self.set_train(False)
-        _, _, indices, _ = self.encode(x)
+        z_e = self.encode(x)
+        _, _, indices, _ = self.quantizer(z_e)
         return indices
 
     def get_encoded_fmap_size(self, video_size):
@@ -334,7 +329,10 @@ class VQVAE3D(nn.Cell):
 
     def construct(self, x):
         # encode
-        z_e, z_q, _, aux_loss = self.encode(x)
+        z_e = self.encode(x)
+
+        # quantization
+        z_q, indices, aux_loss = self.quantizer(z_e)
 
         # decode
         video = self.decode(z_q)
@@ -355,6 +353,8 @@ class VQVAEOpenSora(VQVAE3D):
     ):
 
         config.vqvae.middle_channels = 224
+        n_hiddens = config.vqvae.middle_channels
+        embedding_dim = 4
 
         super().__init__(
             config,
@@ -366,5 +366,30 @@ class VQVAEOpenSora(VQVAE3D):
             dtype,
         )
 
+        self.pre_vq_conv = CausalConv3d(
+            n_hiddens, embedding_dim, kernel_size=1, stride=1, has_bias=True, dtype=dtype
+        )
+        self.post_vq_conv = CausalConv3d(
+            embedding_dim, n_hiddens, kernel_size=1, stride=1, has_bias=True, dtype=dtype
+        )
+
         self.encoder = EncoderOpenSora(config, dtype=dtype)
         self.decoder = DecoderOpenSora(config, dtype=dtype)
+
+    def construct(self, x):
+        # encode
+        z_e = self.encode(x)
+
+        # conv
+        z_e = self.pre_quant_conv(z_e)
+
+        # quantization
+        z_q, indices, aux_loss = self.quantizer(z_e)
+
+        # conv
+        z_q = self.post_vq_conv(z_q)
+
+        # decode
+        video = self.decode(z_q)
+
+        return z_e, z_q, video, aux_loss

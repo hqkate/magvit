@@ -133,7 +133,6 @@ class CausalConv3d(nn.Cell):
             stride=stride,
             dilation=dilation,
             has_bias=has_bias,
-            pad_mode="pad",
             **kwargs,
         ).to_float(dtype)
 

@@ -153,9 +153,11 @@ class Encoder3D(nn.Cell):
                         self.residual_stack.append(
                             TimeDownsample2x(filters, filters, dtype=dtype)
                         )
+                        self.residual_stack.append(nn.ReLU())
                     self.residual_stack.append(
                         SpatialDownsample2x(filters, filters, dtype=dtype)
                     )
+                    self.residual_stack.append(nn.ReLU())
                 else:
                     raise NotImplementedError(f"Unknown downsampler: {self.downsample}")
 
