@@ -193,7 +193,7 @@ class EncoderOpenSora(nn.Cell):
                 for _ in range(n_res_layers)
             ],
             GroupNormExtend(
-                num_groups=32, num_channels=n_hiddens, dtype=dtype
+                num_groups=1, num_channels=n_hiddens, dtype=dtype
             ),  # nn.BatchNorm3d(n_hiddens),
             nn.ReLU(),
         )
@@ -208,7 +208,7 @@ class EncoderOpenSora(nn.Cell):
                 for _ in range(n_res_layers)
             ],
             GroupNormExtend(
-                num_groups=32, num_channels=n_hiddens, dtype=dtype
+                num_groups=1, num_channels=n_hiddens, dtype=dtype
             ),  # nn.BatchNorm3d(n_hiddens),
             nn.ReLU(),
         )

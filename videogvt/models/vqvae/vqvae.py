@@ -93,7 +93,7 @@ class VQVAE3D(nn.Cell):
         # encoder conv_in
         input_conv_kernel_size = (3, 3, 3)
         self.conv_in = CausalConv3d(
-            in_dim, h_dim, input_conv_kernel_size, padding=1, dtype=dtype
+            in_dim, h_dim, input_conv_kernel_size, padding=1, has_bias=False, dtype=dtype
         )
 
         # decoder conv_out
@@ -109,10 +109,10 @@ class VQVAE3D(nn.Cell):
 
         if separate_first_frame_encoding:
             self.conv_in_first_frame = SameConv2d(
-                in_dim, h_dim, input_conv_kernel_size[-2:]
+                in_dim, h_dim, input_conv_kernel_size[-2:], dtype=dtype
             ).to_float(dtype)
             self.conv_out_first_frame = SameConv2d(
-                h_dim, in_dim, output_conv_kernel_size[-2:]
+                h_dim, in_dim, output_conv_kernel_size[-2:], dtype=dtype
             ).to_float(dtype)
 
         self.separate_first_frame_encoding = separate_first_frame_encoding
@@ -125,8 +125,10 @@ class VQVAE3D(nn.Cell):
         # pass continuous latent vector through discretization bottleneck
         if quantization == "lfq":
             self.quantizer = LFQ(
-                dim=m_dim,
+                dim=embedding_dim,
                 codebook_size=self.codebook_size,
+                entropy_loss_weight=self.config.lr_configs.entropy_weight,
+                commitment_loss_weight=self.config.lr_configs.commit_weight,
                 cosine_sim_project_in=False,
                 return_loss_breakdown=False,
                 is_training=is_training,
@@ -353,8 +355,9 @@ class VQVAEOpenSora(VQVAE3D):
     ):
 
         config.vqvae.middle_channels = 224
+        config.vqvae.embedding_dim = 4
         n_hiddens = config.vqvae.middle_channels
-        embedding_dim = 4
+        embedding_dim = config.vqvae.embedding_dim
 
         super().__init__(
             config,
@@ -381,7 +384,7 @@ class VQVAEOpenSora(VQVAE3D):
         z_e = self.encode(x)
 
         # conv
-        z_e = self.pre_quant_conv(z_e)
+        z_e = self.pre_vq_conv(z_e)
 
         # quantization
         z_q, indices, aux_loss = self.quantizer(z_e)

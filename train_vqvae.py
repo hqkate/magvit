@@ -330,105 +330,80 @@ def main(args):
         logger.info(key_info)
 
     # 6. training process
-    if not use_discriminator:
-        model = Model(training_step_vqvae)
 
-        # callbacks
-        callback = [TimeMonitor(args.log_interval)]
-        ofm_cb = OverflowMonitor()
-        callback.append(ofm_cb)
 
-        if rank_id == 0:
-            save_cb = EvalSaveCallback(
-                network=vqvae_with_loss.vqvae,
-                rank_id=rank_id,
-                ckpt_save_dir=ckpt_dir,
-                ema=ema,
-                ckpt_save_policy="latest_k",
-                ckpt_max_keep=args.ckpt_max_keep,
-                ckpt_save_interval=args.ckpt_save_interval,
-                log_interval=args.log_interval,
-                start_epoch=start_epoch,
-                model_name="vqvae_kl_f8",
-                record_lr=False,
-            )
-            callback.append(save_cb)
-            if args.profile:
-                callback.append(ProfilerCallback())
+    logger.info("Start training...")
+    # backup config files
+    # shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
 
-            logger.info("Start training...")
-            # backup config files
-            # shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
+    # with open(os.path.join(args.output_path, "args.yaml"), "w") as f:
+    #     yaml.safe_dump(vars(args), stream=f, default_flow_style=False, sort_keys=False)
 
-            # with open(os.path.join(args.output_path, "args.yaml"), "w") as f:
-            #     yaml.safe_dump(vars(args), stream=f, default_flow_style=False, sort_keys=False)
+    if rank_id == 0:
+        ckpt_manager = CheckpointManager(ckpt_dir, "latest_k", k=args.ckpt_max_keep)
 
-        model.train(
-            args.epochs,
-            dataset,
-            callbacks=callback,
-            dataset_sink_mode=args.dataset_sink_mode,
-            # sink_size=args.sink_size,
-            initial_epoch=start_epoch,
-        )
-    else:
-        if rank_id == 0:
-            ckpt_manager = CheckpointManager(ckpt_dir, "latest_k", k=args.ckpt_max_keep)
-        # output_numpy=True ?
-        ds_iter = dataset.create_dict_iterator(args.epochs - start_epoch)
+    # output_numpy=True ?
+    ds_iter = dataset.create_dict_iterator(args.epochs - start_epoch)
+    avg_loss = 0.0
 
-        for epoch in range(start_epoch, args.epochs):
-            start_time_e = time.time()
-            for step, data in enumerate(ds_iter):
-                start_time_s = time.time()
-                x = data[args.dataset_name]
+    for epoch in range(start_epoch, args.epochs):
+        start_time_e = time.time()
+        for step, data in enumerate(ds_iter):
+            start_time_s = time.time()
+            x = data[args.dataset_name]
 
-                global_step = epoch * dataset_size + step
-                global_step = ms.Tensor(global_step, dtype=ms.int64)
+            global_step = epoch * dataset_size + step
+            global_step = ms.Tensor(global_step, dtype=ms.int64)
 
-                # NOTE: inputs must match the order in GeneratorWithLoss.construct
-                loss_vqvae_t, overflow, scaling_sens = training_step_vqvae(x)
+            # NOTE: inputs must match the order in GeneratorWithLoss.construct
+            loss_vqvae_t, overflow, scaling_sens = training_step_vqvae(x)
+
+            if use_discriminator:
                 loss_disc_t, overflow_d, scaling_sens_d = training_step_disc(x)
 
-                cur_global_step = (
-                    epoch * dataset_size + step + 1
-                )  # starting from 1 for logging
-                if overflow:
-                    logger.warning(f"Overflow occurs in step {cur_global_step}")
+            cur_global_step = (
+                epoch * dataset_size + step + 1
+            )  # starting from 1 for logging
+            if overflow:
+                logger.warning(f"Overflow occurs in step {cur_global_step}")
 
-                # log
-                step_time = time.time() - start_time_s
-                if step % args.log_interval == 0:
-                    loss_vqvae = float(loss_vqvae_t.asnumpy())
-                    logger.info(
-                        f"E: {epoch+1}, S: {step+1}, Loss vqvae: {loss_vqvae:.4f}, Step time: {step_time*1000:.2f}ms"
-                    )
+            # log
+            loss_vqvae = float(loss_vqvae_t.asnumpy())
+            avg_loss += loss_vqvae
+            step_time = time.time() - start_time_s
+            if (step+1) % args.log_interval == 0:
+                avg_loss /= float(args.log_interval)
+                logger.info(
+                    f"E: {epoch+1}, S: {step+1}, Loss vqvae avg: {avg_loss:.4f}, Step time: {step_time*1000:.2f}ms"
+                )
+                avg_loss = 0.0
 
+                if use_discriminator:
                     loss_disc = float(loss_disc_t.asnumpy())
                     logger.info(f"Loss disc: {loss_disc:.4f}")
 
-            epoch_cost = time.time() - start_time_e
-            per_step_time = epoch_cost / dataset_size
-            cur_epoch = epoch + 1
-            logger.info(
-                f"Epoch:[{int(cur_epoch):>3d}/{int(args.epochs):>3d}], "
-                f"epoch time:{epoch_cost:.2f}s, per step time:{per_step_time*1000:.2f}ms, "
-            )
-            if rank_id == 0:
-                if (cur_epoch % args.ckpt_save_interval == 0) or (
-                    cur_epoch == args.epochs
-                ):
-                    ckpt_name = f"vqvae_kl_f8-e{cur_epoch}.ckpt"
-                    if ema is not None:
-                        ema.swap_before_eval()
+        epoch_cost = time.time() - start_time_e
+        per_step_time = epoch_cost / dataset_size
+        cur_epoch = epoch + 1
+        logger.info(
+            f"Epoch:[{int(cur_epoch):>3d}/{int(args.epochs):>3d}], "
+            f"epoch time:{epoch_cost:.2f}s, per step time:{per_step_time*1000:.2f}ms, "
+        )
+        if rank_id == 0:
+            if (cur_epoch % args.ckpt_save_interval == 0) or (
+                cur_epoch == args.epochs
+            ):
+                ckpt_name = f"vqvae_cb_f8-e{cur_epoch}.ckpt"
+                if ema is not None:
+                    ema.swap_before_eval()
 
-                    ckpt_manager.save(
-                        vqvae, None, ckpt_name=ckpt_name, append_dict=None
-                    )
-                    if ema is not None:
-                        ema.swap_after_eval()
+                ckpt_manager.save(
+                    vqvae, None, ckpt_name=ckpt_name, append_dict=None
+                )
+                if ema is not None:
+                    ema.swap_after_eval()
 
-            # TODO: eval while training
+        # TODO: eval while training
 
 
 if __name__ == "__main__":

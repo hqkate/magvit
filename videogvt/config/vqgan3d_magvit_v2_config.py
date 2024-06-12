@@ -35,15 +35,15 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqvae.architecture = "3dcnn"
     config.vqvae.channels = 3
     config.vqvae.middle_channels = 18
-    config.vqvae.codebook_size = 1024
+    config.vqvae.codebook_size = 262144 # 2^18
     config.vqvae.filters = 128
     config.vqvae.downsample = "time+spatial"
     config.vqvae.upsample = "time+spatial" # nearest+conv, deconv, time+spatial
     config.vqvae.num_enc_res_blocks = 4
     config.vqvae.num_dec_res_blocks = 4
-    config.vqvae.channel_multipliers = (1, 2, 2, 4, 4)
-    config.vqvae.temporal_downsample = (True, True, True, False, False)
-    config.vqvae.embedding_dim = 256
+    config.vqvae.channel_multipliers = (1, 2, 2, 4)
+    config.vqvae.temporal_downsample = (True, True, True, False)
+    config.vqvae.embedding_dim = 18 # 256
 
     config.discriminator = ml_collections.ConfigDict()
     config.discriminator.filters = config.vqvae.get_oneway_ref("filters")
@@ -56,6 +56,8 @@ def get_config(config_str="MAGVIT-V2"):
 
     # Loss
     config.lr_configs.perceptual_weight = 0.1
+    config.lr_configs.entropy_weight = 0.3
+    config.lr_configs.commit_weight = 0.25
     config.lr_configs.recons_weight = 5.0
     config.lr_configs.disc_weight = 0.1
     config.lr_configs.disc_start = 1

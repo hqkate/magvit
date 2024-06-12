@@ -133,6 +133,8 @@ class CausalConv3d(nn.Cell):
             stride=stride,
             dilation=dilation,
             has_bias=has_bias,
+            pad_mode="valid",
+            dtype=dtype,
             **kwargs,
         ).to_float(dtype)
 
@@ -197,7 +199,7 @@ def Normalize(in_channels, num_groups=32, extend=False, dtype=ms.float32):
         )
 
 
-def SameConv2d(dim_in, dim_out, kernel_size):
+def SameConv2d(dim_in, dim_out, kernel_size, dtype=ms.float32):
     kernel_size = cast_tuple(kernel_size, 2)
     kernel_size_extend = (
         kernel_size[0],
@@ -213,7 +215,8 @@ def SameConv2d(dim_in, dim_out, kernel_size):
         padding=padding,
         pad_mode="pad",
         has_bias=True,
-    )
+        dtype=dtype,
+    ).to_float(dtype)
 
 
 def Avgpool3d(x):
@@ -338,6 +341,7 @@ class SpatialDownsample2x(nn.Cell):
             stride=stride,
             padding=0,
             has_bias=True,
+            dtype=dtype,
         ).to_float(dtype)
 
     def construct(self, x):
@@ -413,7 +417,7 @@ class TimeDownsample2x(nn.Cell):
         self.chan_in = chan_in
         self.chan_out = chan_out
         self.kernel_size = kernel_size
-        self.conv = CausalConv3d(chan_in, chan_out, kernel_size, stride=2).to_float(
+        self.conv = CausalConv3d(chan_in, chan_out, kernel_size, stride=2, dtype=dtype).to_float(
             dtype
         )
 
@@ -556,19 +560,19 @@ class ResnetBlock3D(nn.Cell):
         self.norm1 = GroupNormExtend(
             num_groups=32, num_channels=in_channels, eps=1e-5, affine=True, dtype=dtype
         )
-        self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1, dtype=dtype)
+        self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype)
         self.norm2 = GroupNormExtend(
             num_groups=32, num_channels=out_channels, eps=1e-5, affine=True, dtype=dtype
         )
-        self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1, dtype=dtype)
+        self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
                 self.conv_shortcut = CausalConv3d(
-                    in_channels, out_channels, 3, padding=1, dtype=dtype
+                    in_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype
                 )
             else:
                 self.nin_shortcut = CausalConv3d(
-                    in_channels, out_channels, 1, padding=0, dtype=dtype
+                    in_channels, out_channels, 1, padding=0, has_bias=False, dtype=dtype
                 )
 
     def construct(self, x):
