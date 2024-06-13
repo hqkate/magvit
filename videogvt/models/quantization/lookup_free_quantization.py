@@ -173,9 +173,7 @@ class LFQ(nn.Cell):
 
         all_codes = ops.arange(codebook_size)
         bits = ((all_codes[..., None] & self.mask) != 0).float().astype(dtype)
-        codebook = self.bits_to_codes(bits)
-
-        self.codebook = ms.Parameter(codebook, requires_grad=False)
+        self.codebook = self.bits_to_codes(bits)
 
         # training
         self.training = is_training
@@ -278,9 +276,9 @@ class LFQ(nn.Cell):
         if self.training:
             # the same as euclidean distance up to a constant
             # distance = -2 * einsum('... i d, j d -> ... i j', original_input, self.codebook)
-            distance = 2 * ops.matmul(original_input, self.codebook.t())
+            distance = -2 * ops.matmul(original_input, self.codebook.t())
 
-            prob = ops.softmax(distance * inv_temperature, axis=-1)
+            prob = ops.softmax(-distance * inv_temperature, axis=-1)
 
             b, n, c, d = prob.shape
             prob = prob.reshape(b * n, c, d)
@@ -301,7 +299,7 @@ class LFQ(nn.Cell):
 
             # distribution over all available tokens in the batch
 
-            avg_prob = ops.mean(per_sample_probs, axis=(0, 1, 2))
+            avg_prob = ops.mean(per_sample_probs, axis=0)
             codebook_entropy = entropy(avg_prob).mean()
 
             # 1. entropy will be nudged to be low for each code, to encourage the network to output confident predictions
