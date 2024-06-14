@@ -85,6 +85,7 @@ class LFQ(nn.Cell):
         keep_num_codebooks_dim=None,
         codebook_scale=1.0,  # for residual LFQ, codebook scaled down by 2x at each layer
         frac_per_sample_entropy=1.0,  # make less than 1. to only use a random fraction of the probs for per sample entropy
+        inv_temperature=100.0,
         soft_clamp_input_value=None,
         cosine_sim_project_in=False,
         cosine_sim_project_in_scale=None,
@@ -169,6 +170,9 @@ class LFQ(nn.Cell):
 
         self.mask = ops.pow(2, ops.arange(codebook_dim - 1, -1, -1))
 
+        # temperature
+        self.inv_temperature = inv_temperature
+
         # codes
 
         all_codes = ops.arange(codebook_size)
@@ -215,7 +219,6 @@ class LFQ(nn.Cell):
     def construct(
         self,
         x,
-        inv_temperature=100.0,
         mask=None,
     ):
         """
@@ -278,7 +281,7 @@ class LFQ(nn.Cell):
             # distance = -2 * einsum('... i d, j d -> ... i j', original_input, self.codebook)
             distance = -2 * ops.matmul(original_input, self.codebook.t())
 
-            prob = ops.softmax(-distance * inv_temperature, axis=-1)
+            prob = ops.softmax(-distance * self.inv_temperature, axis=-1)
 
             b, n, c, d = prob.shape
             prob = prob.reshape(b * n, c, d)

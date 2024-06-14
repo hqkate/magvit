@@ -61,6 +61,19 @@ def default(v, d):
     return v if v is not None else d
 
 
+class Swish(nn.Cell):
+    def __init__(self, upcast=False):
+        super().__init__()
+        self.upcast = upcast
+
+    def construct(self, x):
+        ori_dtype = x.dtype
+        if self.upcast:
+            return x * (ops.sigmoid(x.astype(ms.float32))).astype(ori_dtype)
+        else:
+            return x * (ops.sigmoid(x))
+
+
 class GroupNormExtend(nn.GroupNorm):
     # GroupNorm supporting tensors with more than 4 dim
     def construct(self, x):
@@ -576,19 +589,19 @@ class ResnetBlock3D(nn.Cell):
                 )
 
     def construct(self, x):
-        h = x
-        h = self.norm1(h)
-        h = nonlinearity(h, self.upcast_sigmoid)
-        h = self.conv1(h)
-        h = self.norm2(h)
-        h = nonlinearity(h, self.upcast_sigmoid)
-        h = self.conv2(h)
+        residual = x
+        x = self.norm1(x)
+        x = nonlinearity(x, self.upcast_sigmoid)
+        x = self.conv1(x)
+        x = self.norm2(x)
+        x = nonlinearity(x, self.upcast_sigmoid)
+        x = self.conv2(x)
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
-                x = self.conv_shortcut(x)
+                residual = self.conv_shortcut(residual)
             else:
-                x = self.nin_shortcut(x)
-        return x + h
+                residual = self.nin_shortcut(residual)
+        return x + residual
 
 
 class ResidualLayer(nn.Cell):

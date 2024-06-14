@@ -10,6 +10,7 @@ from videogvt.models.vqvae.model_utils import (
     TimeUpsample2x,
     CausalConv3d,
     GroupNormExtend,
+    Swish,
     nonlinearity,
     _get_selected_flags,
 )
@@ -106,7 +107,7 @@ class Decoder3D(nn.Cell):
         #     self.filters, self.out_channels, kernel_size=(3, 3, 3), padding=1, dtype=dtype
         # )
         self.norm = GroupNormExtend(
-            num_groups=32, num_channels=self.filters, dtype=dtype
+            num_groups=16, num_channels=self.filters, dtype=dtype
         )
         self.residual_stack = nn.SequentialCell()
 
@@ -161,18 +162,18 @@ class Decoder3D(nn.Cell):
                             self.residual_stack.append(
                                 TimeUpsample2x(filters, filters, dtype=dtype)
                             )
-                            self.residual_stack.append(nn.ReLU())
+                            self.residual_stack.append(Swish())
                         self.residual_stack.append(
                             SpatialUpsample2x(filters, filters, dtype=dtype)
                         )
-                        self.residual_stack.append(nn.ReLU())
+                        self.residual_stack.append(Swish())
                     else:
                         raise NotImplementedError(f"Unknown upsampler: {self.upsample}")
 
-                # Adaptive GroupNorm
-                self.residual_stack.append(
-                    GroupNormExtend(num_groups=32, num_channels=filters, dtype=dtype)
-                )
+            # Adaptive GroupNorm
+            self.residual_stack.append(
+                GroupNormExtend(num_groups=32, num_channels=filters, dtype=dtype)
+            )
 
     def construct(self, x):
         x = self.conv_in(x)

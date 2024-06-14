@@ -129,6 +129,7 @@ class VQVAE3D(nn.Cell):
                 codebook_size=self.codebook_size,
                 entropy_loss_weight=self.config.lr_configs.entropy_weight,
                 commitment_loss_weight=self.config.lr_configs.commit_weight,
+                inv_temperature=10.0,
                 cosine_sim_project_in=False,
                 return_loss_breakdown=False,
                 is_training=is_training,

@@ -9,6 +9,7 @@ from videogvt.models.vqvae.model_utils import (
     GroupNormExtend,
     SpatialDownsample2x,
     TimeDownsample2x,
+    Swish,
     nonlinearity,
     _get_selected_flags,
 )
@@ -153,11 +154,11 @@ class Encoder3D(nn.Cell):
                         self.residual_stack.append(
                             TimeDownsample2x(filters, filters, dtype=dtype)
                         )
-                        self.residual_stack.append(nn.ReLU())
+                        self.residual_stack.append(Swish())
                     self.residual_stack.append(
                         SpatialDownsample2x(filters, filters, dtype=dtype)
                     )
-                    self.residual_stack.append(nn.ReLU())
+                    self.residual_stack.append(Swish())
                 else:
                     raise NotImplementedError(f"Unknown downsampler: {self.downsample}")
 

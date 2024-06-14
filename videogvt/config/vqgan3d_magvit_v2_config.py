@@ -56,9 +56,9 @@ def get_config(config_str="MAGVIT-V2"):
 
     # Loss
     config.lr_configs.perceptual_weight = 0.1
-    config.lr_configs.entropy_weight = 0.3
+    config.lr_configs.entropy_weight = 0.2
     config.lr_configs.commit_weight = 0.25
-    config.lr_configs.recons_weight = 5.0
+    config.lr_configs.recons_weight = 10.0
     config.lr_configs.disc_weight = 0.1
     config.lr_configs.disc_start = 1
 
