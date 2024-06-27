@@ -93,7 +93,12 @@ class VQVAE3D(nn.Cell):
         # encoder conv_in
         input_conv_kernel_size = (3, 3, 3)
         self.conv_in = CausalConv3d(
-            in_dim, h_dim, input_conv_kernel_size, padding=1, has_bias=False, dtype=dtype
+            in_dim,
+            h_dim,
+            input_conv_kernel_size,
+            padding=1,
+            has_bias=False,
+            dtype=dtype,
         )
 
         # decoder conv_out
@@ -354,7 +359,6 @@ class VQVAEOpenSora(VQVAE3D):
         is_training=False,
         dtype=ms.float32,
     ):
-
         config.vqvae.middle_channels = 224
         config.vqvae.embedding_dim = 4
         n_hiddens = config.vqvae.middle_channels
@@ -371,10 +375,20 @@ class VQVAEOpenSora(VQVAE3D):
         )
 
         self.pre_vq_conv = CausalConv3d(
-            n_hiddens, embedding_dim, kernel_size=1, stride=1, has_bias=True, dtype=dtype
+            n_hiddens,
+            embedding_dim,
+            kernel_size=1,
+            stride=1,
+            has_bias=True,
+            dtype=dtype,
         )
         self.post_vq_conv = CausalConv3d(
-            embedding_dim, n_hiddens, kernel_size=1, stride=1, has_bias=True, dtype=dtype
+            embedding_dim,
+            n_hiddens,
+            kernel_size=1,
+            stride=1,
+            has_bias=True,
+            dtype=dtype,
         )
 
         self.encoder = EncoderOpenSora(config, dtype=dtype)

@@ -105,7 +105,17 @@ class AxialAttention(nn.Cell):
 
 # Copied from https://github.com/wilson1yan/VideoGPT
 class MultiHeadAttention(nn.Cell):
-    def __init__(self, shape, dim_q, dim_kv, n_head, n_layer, causal, attn_kwargs, dtype=ms.float32):
+    def __init__(
+        self,
+        shape,
+        dim_q,
+        dim_kv,
+        n_head,
+        n_layer,
+        causal,
+        attn_kwargs,
+        dtype=ms.float32,
+    ):
         super().__init__()
         self.causal = causal
         self.shape = shape
@@ -119,7 +129,7 @@ class MultiHeadAttention(nn.Cell):
             n_head * self.d_k,
             has_bias=False,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_q)),
-            dtype=dtype
+            dtype=dtype,
         )  # q
         # self.w_qs.weight.data.normal_(std=1.0 / np.sqrt(dim_q))
 
@@ -128,7 +138,7 @@ class MultiHeadAttention(nn.Cell):
             n_head * self.d_k,
             has_bias=False,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_kv)),
-            dtype=dtype
+            dtype=dtype,
         )  # k
         # self.w_ks.weight.data.normal_(std=1.0 / np.sqrt(dim_kv))
 
@@ -137,7 +147,7 @@ class MultiHeadAttention(nn.Cell):
             n_head * self.d_v,
             has_bias=False,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_kv)),
-            dtype=dtype
+            dtype=dtype,
         )  # v
         # self.w_vs.weight.data.normal_(std=1.0 / np.sqrt(dim_kv))
 
@@ -146,11 +156,13 @@ class MultiHeadAttention(nn.Cell):
             dim_q,
             has_bias=True,
             weight_init=Normal(sigma=1.0 / np.sqrt(dim_q * n_layer)),
-            dtype=dtype
+            dtype=dtype,
         )  # c
         # self.fc.weight.data.normal_(std=1.0 / np.sqrt(dim_q * n_layer))
 
-        self.attn = AxialAttention(len(shape), causal=causal, dtype=dtype, **attn_kwargs)
+        self.attn = AxialAttention(
+            len(shape), causal=causal, dtype=dtype, **attn_kwargs
+        )
 
         self.cache = None
 
@@ -220,10 +232,16 @@ class AxialBlock(nn.Cell):
             n_layer=1,
             causal=False,
         )
-        self.attn_w = MultiHeadAttention(attn_kwargs=dict(axial_dim=-2), **kwargs, dtype=dtype)
-        self.attn_h = MultiHeadAttention(attn_kwargs=dict(axial_dim=-3), **kwargs, dtype=dtype)
+        self.attn_w = MultiHeadAttention(
+            attn_kwargs=dict(axial_dim=-2), **kwargs, dtype=dtype
+        )
+        self.attn_h = MultiHeadAttention(
+            attn_kwargs=dict(axial_dim=-3), **kwargs, dtype=dtype
+        )
         kwargs["causal"] = True
-        self.attn_t = MultiHeadAttention(attn_kwargs=dict(axial_dim=-4), **kwargs, dtype=dtype)
+        self.attn_t = MultiHeadAttention(
+            attn_kwargs=dict(axial_dim=-4), **kwargs, dtype=dtype
+        )
 
     def construct(self, x):
         x = shift_dim(x, 1, -1)

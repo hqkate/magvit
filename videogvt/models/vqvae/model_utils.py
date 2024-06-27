@@ -430,9 +430,9 @@ class TimeDownsample2x(nn.Cell):
         self.chan_in = chan_in
         self.chan_out = chan_out
         self.kernel_size = kernel_size
-        self.conv = CausalConv3d(chan_in, chan_out, kernel_size, stride=2, dtype=dtype).to_float(
-            dtype
-        )
+        self.conv = CausalConv3d(
+            chan_in, chan_out, kernel_size, stride=2, dtype=dtype
+        ).to_float(dtype)
 
     def construct(self, x):
         x = self.conv(x)
@@ -573,11 +573,15 @@ class ResnetBlock3D(nn.Cell):
         self.norm1 = GroupNormExtend(
             num_groups=32, num_channels=in_channels, eps=1e-5, affine=True, dtype=dtype
         )
-        self.conv1 = CausalConv3d(in_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype)
+        self.conv1 = CausalConv3d(
+            in_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype
+        )
         self.norm2 = GroupNormExtend(
             num_groups=32, num_channels=out_channels, eps=1e-5, affine=True, dtype=dtype
         )
-        self.conv2 = CausalConv3d(out_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype)
+        self.conv2 = CausalConv3d(
+            out_channels, out_channels, 3, padding=1, has_bias=False, dtype=dtype
+        )
         if self.in_channels != self.out_channels:
             if self.use_conv_shortcut:
                 self.conv_shortcut = CausalConv3d(

@@ -90,6 +90,7 @@ class LFQ(nn.Cell):
         cosine_sim_project_in=False,
         cosine_sim_project_in_scale=None,
         return_loss_breakdown=False,
+        is_video=True,
         is_training=False,
         dtype=ms.float32,
     ):
@@ -179,6 +180,9 @@ class LFQ(nn.Cell):
         bits = ((all_codes[..., None] & self.mask) != 0).float().astype(dtype)
         self.codebook = self.bits_to_codes(bits)
 
+        # video or image
+        self.is_video = is_video
+
         # training
         self.training = is_training
 
@@ -231,7 +235,11 @@ class LFQ(nn.Cell):
 
         # standardize image or video into (batch, seq, dimension)
         # x = rearrange(x, 'b d ... -> b ... d')
-        x = x.permute(0, 2, 3, 4, 1)
+        if self.is_video:
+            x = x.permute(0, 2, 3, 4, 1)
+        else:
+            x = x.permute(0, 2, 3, 1)
+
         x_shape = x.shape
         # x, ps = pack_one(x, 'b * d')
         b = x.shape[0]
@@ -339,7 +347,12 @@ class LFQ(nn.Cell):
         # reconstitute image or video dimensions
 
         x = x.reshape(*x_shape)
-        x = x.permute(0, 4, 1, 2, 3)
+
+        if self.is_video:
+            x = x.permute(0, 4, 1, 2, 3)
+        else:
+            x = x.permute(0, 3, 1, 2)
+
         indices = indices.squeeze(-1)
 
         # complete aux loss
