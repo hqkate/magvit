@@ -1,7 +1,7 @@
 import logging
 import os
 
-from mindcv.models import create_model
+import mindcv
 
 import mindspore as ms
 import mindspore.nn as nn
@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 class LPIPS(nn.Cell):
     # Learned perceptual metric
     def __init__(self, use_dropout=True):
-        super(LPIPS, self).__init__()
+        super().__init__()
         self.scaling_layer = ScalingLayer()
         self.chns = [64, 128, 256, 512, 512]  # vgg16 features
         self.lin0 = NetLinLayer(self.chns[0], use_dropout=use_dropout)
@@ -22,10 +22,6 @@ class LPIPS(nn.Cell):
         self.lin3 = NetLinLayer(self.chns[3], use_dropout=use_dropout)
         self.lin4 = NetLinLayer(self.chns[4], use_dropout=use_dropout)
         # load NetLin metric layers
-        self.load_from_pretrained()
-
-        self.lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
-        self.lins = nn.CellList(self.lins)
 
         # create vision backbone and load pretrained weights
         self.net = vgg16(pretrained=True, requires_grad=False)
@@ -34,7 +30,7 @@ class LPIPS(nn.Cell):
         for param in self.trainable_params():
             param.requires_grad = False
 
-    def load_from_pretrained(self, ckpt_path="./checkpoints/lpips_vgg-426bf45c.ckpt"):
+    def load_from_pretrained(self, ckpt_path):
         # TODO: just load ms ckpt
         if not os.path.exists(ckpt_path):
             raise ValueError(
@@ -56,11 +52,12 @@ class LPIPS(nn.Cell):
         in0_input, in1_input = (self.scaling_layer(input), self.scaling_layer(target))
         outs0, outs1 = self.net(in0_input), self.net(in1_input)
         val = 0  # ms.Tensor(0, dtype=input.dtype)
+        lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
         for kk in range(len(self.chns)):
             diff = (normalize_tensor(outs0[kk]) - normalize_tensor(outs1[kk])) ** 2
             # res += spatial_average(lins[kk](diff), keepdim=True)
             # lin_layer = lins[kk]
-            val += ops.mean(self.lins[kk](diff), axis=[2, 3], keep_dims=True)
+            val += ops.mean(lins[kk](diff), axis=[2, 3], keep_dims=True)
         return val
 
 
@@ -88,9 +85,7 @@ class NetLinLayer(nn.Cell):
             else []
         )
         layers += [
-            nn.Conv2d(chn_in, chn_out, 1, stride=1, padding=0, has_bias=False).to_float(
-                dtype
-            ),
+            nn.Conv2d(chn_in, chn_out, 1, stride=1, padding=0, has_bias=False).to_float(dtype),
         ]
         self.model = nn.SequentialCell(layers)
 
@@ -102,7 +97,7 @@ class vgg16(nn.Cell):
     def __init__(self, requires_grad=False, pretrained=True):
         super(vgg16, self).__init__()
         # FIXME: add bias in vgg. use the same model weights in PT.
-        model = create_model("vgg16", pretrained=pretrained)
+        model = mindcv.create_model("vgg16", pretrained=pretrained)
         model.set_train(False)
         vgg_pretrained_features = model.features
         self.slice1 = nn.SequentialCell()

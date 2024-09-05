@@ -1,17 +1,8 @@
 import numpy as np
 from tqdm import tqdm
 import math
+from skimage.metrics import peak_signal_noise_ratio as cal_psnr
 
-def img_psnr(img1, img2):
-    # [0,1]
-    # compute mse
-    # mse = np.mean((img1-img2)**2)
-    mse = np.mean((img1 / 1.0 - img2 / 1.0) ** 2)
-    # compute psnr
-    if mse < 1e-10:
-        return 100
-    psnr = 20 * math.log10(1 / math.sqrt(mse))
-    return psnr
 
 def trans(x):
     return x
@@ -44,7 +35,7 @@ def calculate_psnr(videos1, videos2):
             img2 = video2[clip_timestamp]
 
             # calculate psnr of a video
-            psnr_results_of_a_video.append(img_psnr(img1, img2))
+            psnr_results_of_a_video.append(cal_psnr(img1, img2))
 
         psnr_results.append(psnr_results_of_a_video)
 

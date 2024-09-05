@@ -7,18 +7,29 @@ from mindspore import context
 __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
 
-from videogvt.models.vqvae import VQVAE_Magvit2_3D
+from videogvt.models.vqvae import VQVAE_3D
 
 
 context.set_context(
     mode=1,
     device_target="Ascend",
-    device_id=7
+    device_id=7,
+    ascend_config={"precision_mode": "allow_mix_precision_bf16"},
 )
 
 
 def inflate(vae2d_ckpt, save_fp):
-    vae3d = VQVAE_Magvit2_3D()
+    vae3d = VQVAE_3D(
+        in_out_channels=3,
+        latent_embed_dim=18,
+        embed_dim=18,
+        filters=128,
+        num_res_blocks=4,
+        channel_multipliers=(1, 2, 2, 4),
+        temporal_downsample=(True, True, True),
+        spatial_downsample=(True, True, True),
+        dtype=ms.float32
+    )
     vae2d = ms.load_checkpoint(vae2d_ckpt)
 
     vae_2d_keys = list(vae2d.keys())
@@ -57,7 +68,6 @@ def inflate(vae2d_ckpt, save_fp):
             if shape_3d[:2] != shape_2d[:2]:
                 print(key_2d, shape_3d, shape_2d)
 
-                # V3
                 weights = vae2d[key_2d]
                 shape_3d_new = tuple([shape_3d[0] // 2]) + shape_3d[1:]
                 new_w = ms.ops.zeros(shape_3d_new, dtype=weights.dtype)

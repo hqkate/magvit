@@ -90,7 +90,6 @@ class LFQ(nn.Cell):
         cosine_sim_project_in=False,
         cosine_sim_project_in_scale=None,
         return_loss_breakdown=False,
-        is_video=True,
         is_training=False,
         dtype=ms.float32,
     ):
@@ -180,11 +179,8 @@ class LFQ(nn.Cell):
         bits = ((all_codes[..., None] & self.mask) != 0).float().astype(dtype)
         self.codebook = self.bits_to_codes(bits)
 
-        # video or image
-        self.is_video = is_video
-
         # training
-        self.training = is_training
+        self.is_training = is_training
 
     def bits_to_codes(self, bits):
         return bits * self.codebook_scale * 2 - self.codebook_scale
@@ -220,26 +216,7 @@ class LFQ(nn.Cell):
 
         return codes
 
-    def construct(
-        self,
-        x,
-        mask=None,
-    ):
-        """
-        einstein notation
-        b - batch
-        n - sequence (or flattened spatial dimensions)
-        d - feature dimension, which is also log2(codebook size)
-        c - number of codebook dim
-        """
-
-        # standardize image or video into (batch, seq, dimension)
-        # x = rearrange(x, 'b d ... -> b ... d')
-        if self.is_video:
-            x = x.permute(0, 2, 3, 4, 1)
-        else:
-            x = x.permute(0, 2, 3, 1)
-
+    def _forward(self, x):
         x_shape = x.shape
         # x, ps = pack_one(x, 'b * d')
         b = x.shape[0]
@@ -273,7 +250,7 @@ class LFQ(nn.Cell):
 
         # use straight-through gradients (optionally with custom activation fn) if training
 
-        if self.training:
+        if self.is_training:
             x = self.activation(x)
             x = x + ops.stop_gradient(quantized - x)
         else:
@@ -284,7 +261,7 @@ class LFQ(nn.Cell):
 
         # entropy aux loss
 
-        if self.training:
+        if self.is_training:
             # the same as euclidean distance up to a constant
             # distance = -2 * einsum('... i d, j d -> ... i j', original_input, self.codebook)
             distance = -2 * ops.matmul(original_input, self.codebook.t())
@@ -326,13 +303,20 @@ class LFQ(nn.Cell):
 
         # commit loss
 
-        if self.training:
+        if self.is_training:
             commit_loss = ops.mse_loss(
-                original_input, ops.stop_gradient(quantized), reduction="none"
+                original_input, ops.stop_gradient(quantized), reduction="mean"
             )
             commit_loss = commit_loss.mean()
         else:
             commit_loss = ms.Tensor(0.0)
+
+        # complete aux loss
+
+        aux_loss = (
+            entropy_aux_loss * self.entropy_loss_weight
+            + commit_loss * self.commitment_loss_weight
+        )
 
         # merge back codebook dim
 
@@ -348,29 +332,36 @@ class LFQ(nn.Cell):
 
         x = x.reshape(*x_shape)
 
-        if self.is_video:
-            x = x.permute(0, 4, 1, 2, 3)
-        else:
-            x = x.permute(0, 3, 1, 2)
+        return x, indices, aux_loss
+
+    def construct(
+        self,
+        x,
+    ):
+        """
+        einstein notation
+        b - batch
+        n - sequence (or flattened spatial dimensions)
+        d - feature dimension, which is also log2(codebook size)
+        c - number of codebook dim
+        """
+
+        # standardize image or video into (batch, seq, dimension)
+        # x = rearrange(x, 'b d ... -> b ... d')
+        x = x.permute(0, 2, 3, 4, 1)
+
+        x, indices, aux_loss = self._forward(x=x)
+
+        x = x.permute(0, 4, 1, 2, 3)
 
         indices = indices.squeeze(-1)
 
-        # complete aux loss
+        return (x, indices, aux_loss)
 
-        aux_loss = (
-            entropy_aux_loss * self.entropy_loss_weight
-            + commit_loss * self.commitment_loss_weight
-        )
 
-        if not self.return_loss_breakdown:
-            return (x, indices, aux_loss)
-
-        else:
-            return (
-                x,
-                indices,
-                aux_loss,
-                per_sample_entropy,
-                codebook_entropy,
-                commit_loss,
-            )
+class LFQ2d(LFQ):
+    def construct(self, x):
+        x = x.permute(0, 2, 3, 1)
+        x, indices, aux_loss = self._forward(x=x)
+        x = x.permute(0, 3, 1, 2)
+        return (x, indices, aux_loss)

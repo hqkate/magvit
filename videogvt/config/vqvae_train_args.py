@@ -36,9 +36,9 @@ def parse_args():
     )
     parser.add_argument(
         "--model_class",
-        default="magvit",
+        default="magvit-3d",
         type=str,
-        choices=["magvit", "opensora",],
+        choices=["magvit-2d", "magvit-3d",],
         help="model arch type",
     )
     parser.add_argument(
@@ -50,6 +50,8 @@ def parse_args():
     parser.add_argument(
         "--use_parallel", default=False, type=str2bool, help="use parallel"
     )
+    parser.add_argument("--parallel_mode", default="data", type=str, choices=["data", "optim"], help="parallel mode: data/optim")
+    parser.add_argument("--debug", default=False, type=str2bool, help="debug mode")
     parser.add_argument(
         "--output_path",
         default="outputs/vae_train",
@@ -62,6 +64,7 @@ def parse_args():
         type=str,
         help="resume training, can set True or path to resume checkpoint.(default=False)",
     )
+
     # ms
     parser.add_argument(
         "--mode",
@@ -72,8 +75,31 @@ def parse_args():
     parser.add_argument(
         "--device_target", type=str, default="Ascend", help="Ascend or GPU"
     )
+    parser.add_argument("--max_device_memory", type=str, default=None, help="e.g. `30GB` for 910a, `59GB` for 910b")
     parser.add_argument(
         "--profile", default=False, type=str2bool, help="Profile or not"
+    )
+    parser.add_argument(
+        "--jit_level",
+        default="O0",
+        type=str,
+        choices=["O0", "O1", "O2"],
+        help="Used to control the compilation optimization level. Supports [“O0”, “O1”, “O2”]."
+        "O0: Except for optimizations that may affect functionality, all other optimizations are turned off, adopt KernelByKernel execution mode."
+        "O1: Using commonly used optimizations and automatic operator fusion optimizations, adopt KernelByKernel execution mode."
+        "O2: Ultimate performance optimization, adopt Sink execution mode.",
+    )
+    parser.add_argument(
+        "--vae_keep_gn_fp32",
+        default=True,
+        type=str2bool,
+        help="whether keep GroupNorm in fp32.",
+    )
+    parser.add_argument(
+        "--global_bf16",
+        default=False,
+        type=str2bool,
+        help="Experimental. If True, dtype will be overrided, operators will be computered in bf16 if they are supported by CANN",
     )
     # data
     parser.add_argument(
@@ -121,8 +147,6 @@ def parse_args():
     parser.add_argument(
         "--frame_stride", default=1, type=int, help="frame sampling stride"
     )
-    parser.add_argument("--contains_first_frame", default=True, type=str2bool, help="Specify if the video contains the first frame.")
-    parser.add_argument("--separate_first_frame_encoding", default=True, type=str2bool, help="Specify if to encode the first frame separately.")
 
     # optim
     parser.add_argument(

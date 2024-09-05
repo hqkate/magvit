@@ -43,7 +43,7 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqvae.num_dec_res_blocks = 4
     config.vqvae.channel_multipliers = (1, 2, 2, 4)
     config.vqvae.temporal_downsample = (True, True, True, False)
-    config.vqvae.embedding_dim = 18 # 256
+    config.vqvae.embedding_dim = 18
 
     config.discriminator = ml_collections.ConfigDict()
     config.discriminator.filters = config.vqvae.get_oneway_ref("filters")
@@ -56,7 +56,7 @@ def get_config(config_str="MAGVIT-V2"):
 
     # Loss
     config.lr_configs.perceptual_weight = 0.1
-    config.lr_configs.entropy_weight = 0.2
+    config.lr_configs.entropy_weight = 0.1
     config.lr_configs.commit_weight = 0.25
     config.lr_configs.recons_weight = 10.0
     config.lr_configs.disc_weight = 0.1

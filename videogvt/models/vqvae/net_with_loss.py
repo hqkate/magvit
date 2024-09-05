@@ -54,8 +54,8 @@ class GeneratorWithLoss(nn.Cell):
         self.perceptual_loss = LPIPS()  # freeze params inside
         # self.perceptual_loss.to_float(dtype)
 
-        # self.l1 = nn.L1Loss(reduction="none")
-        self.mse = nn.MSELoss()
+        self.l1 = nn.L1Loss(reduction="none")
+        # self.mse = nn.MSELoss()
 
         self.disc_start = disc_start
         self.disc_weight = disc_weight
@@ -76,17 +76,15 @@ class GeneratorWithLoss(nn.Cell):
         self,
         x,
         recons,
-        aux_loss,
         cond=None,
     ):
         x_reshape = _rearrange_in(x)
         recons_reshape = _rearrange_in(recons)
 
         # 2.1 entropy loss and commitment loss
-        loss = aux_loss
 
         # 2.2 reconstruction loss in pixels
-        rec_loss = self.mse(recons_reshape, x_reshape) * self.recons_weight
+        rec_loss = self.l1(recons_reshape, x_reshape) * self.recons_weight
 
         # 2.3 perceptual loss
         if self.perceptual_weight > 0:
@@ -140,6 +138,7 @@ class GeneratorWithLoss(nn.Cell):
 
         # 2. compuate loss
         loss = self.loss_function(x, recons, aux_loss, cond)
+        loss += aux_loss
 
         return loss
 
