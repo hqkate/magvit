@@ -66,28 +66,20 @@ class Encoder(nn.Cell):
 
     def __init__(
         self,
-        in_out_channels=4,
-        latent_embed_dim=512,  # num channels for latent vector
-        filters=128,
-        num_res_blocks=4,
-        channel_multipliers=(1, 2, 2, 4),
-        temporal_downsample=(False, True, True),
-        spatial_downsample=(True, True, True),
-        num_groups=32,  # for nn.GroupNorm
-        activation_fn="swish",
+        config,
         dtype=ms.flaot32,
     ):
         super().__init__()
         self.filters = filters
-        self.num_res_blocks = num_res_blocks
-        self.num_blocks = len(channel_multipliers)
-        self.channel_multipliers = channel_multipliers
-        self.temporal_downsample = temporal_downsample
-        self.spatial_downsample = spatial_downsample
-        self.num_groups = num_groups
-        self.embedding_dim = latent_embed_dim
+        self.num_res_blocks = config.num_res_blocks
+        self.num_blocks = len(config.channel_multipliers)
+        self.channel_multipliers = config.channel_multipliers
+        self.temporal_downsample = config.temporal_downsample
+        self.spatial_downsample = config.spatial_downsample
+        self.num_groups = config.num_groups
+        self.embedding_dim = config.latent_embed_dim
 
-        self.activation_fn = get_activation_fn(activation_fn)
+        self.activation_fn = get_activation_fn(config.activation_fn)
         self.activate = self.activation_fn()
         self.conv_fn = CausalConv3d
         self.block_args = dict(
@@ -100,7 +92,7 @@ class Encoder(nn.Cell):
 
         # first layer conv
         self.conv_in = self.conv_fn(
-            in_out_channels,
+            config.in_out_channels,
             filters,
             kernel_size=(3, 3, 3),
             has_bias=False,
@@ -178,29 +170,21 @@ class Decoder(nn.Cell):
 
     def __init__(
         self,
-        in_out_channels=4,
-        latent_embed_dim=512,
-        filters=128,
-        num_res_blocks=4,
-        channel_multipliers=(1, 2, 2, 4),
-        temporal_downsample=(False, True, True),
-        spatial_downsample=(True, True, True),
-        num_groups=32,  # for nn.GroupNorm
-        activation_fn="swish",
+        config,
         dtype=ms.float32,
     ):
         super().__init__()
         self.filters = filters
-        self.num_res_blocks = num_res_blocks
-        self.num_blocks = len(channel_multipliers)
-        self.channel_multipliers = channel_multipliers
-        self.temporal_downsample = temporal_downsample
-        self.spatial_downsample = spatial_downsample
-        self.num_groups = num_groups
-        self.embedding_dim = latent_embed_dim
+        self.num_res_blocks = config.num_res_blocks
+        self.num_blocks = len(config.channel_multipliers)
+        self.channel_multipliers = config.channel_multipliers
+        self.temporal_downsample = config.temporal_downsample
+        self.spatial_downsample = config.spatial_downsample
+        self.num_groups = config.num_groups
+        self.embedding_dim = config.latent_embed_dim
         self.s_stride = 2
 
-        self.activation_fn = get_activation_fn(activation_fn)
+        self.activation_fn = get_activation_fn(config.activation_fn)
         self.activate = self.activation_fn()
         self.conv_fn = CausalConv3d
         self.block_args = dict(
@@ -262,7 +246,7 @@ class Decoder(nn.Cell):
 
         self.norm1 = GroupNormExtend(self.num_groups, prev_filters)
 
-        self.conv_out = self.conv_fn(filters, in_out_channels, 3, dtype=dtype)
+        self.conv_out = self.conv_fn(filters, config.in_out_channels, 3, dtype=dtype)
 
     def construct(self, x):
         x = self.conv1(x)

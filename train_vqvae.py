@@ -9,6 +9,7 @@ import time
 import yaml
 from omegaconf import OmegaConf
 
+from utils.env import init_env
 from videogvt.config.vqgan3d_magvit_v2_config import get_config
 from videogvt.config.vqvae_train_args import parse_args
 from videogvt.data.loader import create_dataloader
@@ -24,7 +25,6 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 mindone_lib_path = os.path.abspath(os.path.join(__dir__, "../../"))
 sys.path.insert(0, mindone_lib_path)
 
-from mindone.env import init_train_env
 from mindone.trainers.callback import (
     EvalSaveCallback,
     OverflowMonitor,
