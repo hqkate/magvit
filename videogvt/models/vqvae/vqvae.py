@@ -136,3 +136,6 @@ class VQVAE_2D(VQVAE):
         z = self.post_quant_conv(z)
         x = self.decoder(z)
         return x
+
+    def construct(self, x):
+        return super().construct(x)

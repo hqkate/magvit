@@ -65,28 +65,3 @@ def get_config(config_str="MAGVIT-V2"):
     # Pretrained models on ImageNet.
     config.init_from = ml_collections.ConfigDict()
     config.init_from.inflation = "2d->3d"
-
-    # Standalone evaluation.
-    if "eval" in options:
-        config.eval_only = True
-        config.eval_from.checkpoint_path = {
-            "B": "gs://magvit/models/ucf_3d_base",
-            "L": "gs://magvit/models/ucf_3d_large",
-        }[version]
-        config.eval_from.step = -1
-        config.eval_from.legacy_checkpoint = True
-
-    if "runlocal" in options:
-        config.batch_size = 16
-        config.num_training_epochs = 10
-        # gets a small model for debugging
-        config.vqvae.filters = 32
-        config.vqvae.embedding_dim = 16
-        config.vqvae.num_enc_res_blocks = 1
-        config.vqvae.num_dec_res_blocks = 1
-        config.discriminator.filters = 1
-        config.discriminator.channel_multipliers = (1,)
-        config.vqvae.channel_multipliers = (1,)
-        config.vqvae.codebook_size = 128
-
-    return config

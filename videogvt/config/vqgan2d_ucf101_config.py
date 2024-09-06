@@ -47,8 +47,6 @@ def get_config(config_str="B"):
     config.dataset_configs.num_classes = NUM_CLASSES
     config.dataset_configs.num_frames = 16
     config.dataset_configs.stride = 1
-    # TODO(Lijun-Yu, roadjiang): test this augmentation and other augmentations.
-    # min_resize = int(min_resize / 224 * 256)
     config.dataset_configs.min_resize = config.get_oneway_ref("image_size")
     config.dataset_configs.crop_size = config.get_ref("image_size")
     config.dataset_configs.one_hot_label = False
@@ -126,17 +124,6 @@ def get_config(config_str="B"):
         "L": "gs://magvit/models/imagenet_2d_large",
     }[version]
 
-    # Evaluation.
-    config.eval = ml_collections.ConfigDict()
-    config.eval.enable_inception_score = True
-    config.eval.enable_frechet_distance = True
-    config.eval.data_splits = "train,validation"
-    config.eval.num_examples = 10000
-    config.eval.final_num_repeats = 1
-    config.eval_from = ml_collections.ConfigDict()
-    config.eval_from.checkpoint_path = None
-    config.eval_from.step = None
-
     # Logging.
     config.logging = ml_collections.ConfigDict()
     config.logging.enable_checkpoint = True
@@ -144,28 +131,6 @@ def get_config(config_str="B"):
     config.logging.checkpoint_kept = 5
     config.logging.log_metric_steps = 200
     config.logging.log_sample_size = 2
-
-    if "runlocal" in options:
-        config.batch_size = 16
-        config.num_training_epochs = 10
-        config.eval_batch_split = 1
-
-        config.pretrained_image_model = False
-        config.perceptual_loss_weight = 0.0
-
-        config.vqvae.filters = 32
-        config.vqvae.num_enc_res_blocks = 1
-        config.vqvae.num_dec_res_blocks = 1
-        config.vqvae.channel_multipliers = (1,) * len(config.vqvae.channel_multipliers)
-        config.discriminator.channel_multipliers = (1,) * len(
-            config.discriminator.channel_multipliers
-        )
-
-        config.logging.enable_checkpoint = False
-        config.logging.checkpoint_steps = 100
-        config.logging.log_metric_steps = 20
-
-        del config.init_from
 
     # Standalone evaluation.
     if "eval" in options:
