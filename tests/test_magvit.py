@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
 from videogvt.models.magvit import MAGVIT
 from videogvt.models.vqvae.vqvae import VQVAE3D
 from videogvt.models.transformer import MAGVITransformer
-from videogvt.config.vqgan3d_magvit_v2_config import get_config
+from videogvt.config.vqgan3d_ucf101_config import get_config
 
 
 config = get_config("B")

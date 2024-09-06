@@ -71,10 +71,10 @@ class Encoder(nn.Cell):
     ):
         super().__init__()
 
-        self.filters = config.filters # 128
+        self.filters = config.filters  # 128
         self.num_res_blocks = config.num_enc_res_blocks
         self.num_blocks = len(config.channel_multipliers)
-        self.channel_multipliers = config.channel_multipliers # (1, 2, 2, 4)
+        self.channel_multipliers = config.channel_multipliers  # (1, 2, 2, 4)
         self.spatial_downsample = config.spatial_downsample
         self.num_groups = config.num_groups
         self.embedding_dim = config.embedding_dim  # num channels for latent vector
@@ -127,7 +127,7 @@ class Encoder(nn.Cell):
                     prev_filters = filters  # update in_channels
                 else:
                     # if no t downsample, don't add since this does nothing for pipeline models
-                    self.conv_blocks.append(nn.Identity(prev_filters))  # Identity
+                    self.conv_blocks.append(nn.Identity())  # Identity
                     prev_filters = filters  # update in_channels
 
         # last layer res block
@@ -237,7 +237,7 @@ class Decoder(nn.Cell):
                 else:
                     self.conv_blocks.insert(
                         0,
-                        nn.Identity(prev_filters),
+                        nn.Identity(),
                     )
 
         self.norm1 = GroupNormExtend(self.num_groups, prev_filters, dtype=dtype)

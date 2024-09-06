@@ -12,7 +12,7 @@ import numpy as np
 import yaml
 from omegaconf import OmegaConf
 
-from videogvt.config.vqgan3d_magvit_v2_config import get_config
+from videogvt.config.vqgan3d_ucf101_config import get_config
 from videogvt.data.loader import create_dataloader
 from videogvt.eval import calculate_psnr, calculate_ssim
 from videogvt.models.vqvae.lpips import LPIPS

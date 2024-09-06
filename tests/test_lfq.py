@@ -7,7 +7,7 @@ __dir__ = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
 
 from videogvt.models.quantization import LFQ
-from videogvt.config.vqgan3d_magvit_v2_config import get_config
+from videogvt.config.vqgan3d_ucf101_config import get_config
 
 # GRAPH_MODE
 # PYNATIVE_MODE

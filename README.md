@@ -13,8 +13,8 @@ This folder contains the Mindspore implementation of [MAGVIT-v2](https://arxiv.o
 
 ## Requirements
 
-1. install Mindspore 2.3 according to
-2. For Ascend users, please install CANN version:
+1. Install Mindspore >=2.3 according to the [official tutorials](https://www.mindspore.cn/install)
+2. For Ascend users, please install the corresponding CANN version as stated in the official document. [CANN](https://www.mindspore.cn/install#%E5%AE%89%E8%A3%85%E6%98%87%E8%85%BEai%E5%A4%84%E7%90%86%E5%99%A8%E9%85%8D%E5%A5%97%E8%BD%AF%E4%BB%B6%E5%8C%85)
 
 ```
 pip install -r requirements.txt
@@ -22,7 +22,27 @@ pip install -r requirements.txt
 
 ## Datasets
 
-We use UCF-101 as an example.
+Here we present an overview of the datasets we used in training. For data download and detailed preprocessing tutorial, please refer to [datasets](./tools/datasets.md)
+
+### Image Dataset for pretraining
+
+Following the original paper, we use [ImageNet-1K](https://huggingface.co/datasets/ILSVRC/imagenet-1k) to pretrain VQVAE-2D as the initialiation.
+
+| Dataset | Train | Val |
+| --- | --- | --- |
+| ImageNet-1K | 1281167 | 50000 |
+
+
+### Video Dataset
+
+In this repositry, we use [UCF-101](https://www.crcv.ucf.edu/data/UCF101.php) to train the VQVAE-3d.
+
+We use the Train/Test Splits for Action Recognition, the statistics are:
+
+| Dataset | Train | Test |
+| --- | --- | --- |
+| UCF-101| 9537 | 3783 |
+
 
 ## Training
 

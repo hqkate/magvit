@@ -44,7 +44,7 @@ class GroupNormExtend(nn.GroupNorm):
             x = x.view(x_shape[0], x_shape[1], x_shape[2], -1)
         y = super().construct(x)
         return y.view(x_shape)
-    
+
 
 class CausalConv3d(nn.Cell):
     """
@@ -194,9 +194,9 @@ class TimeUpsample2x(nn.Cell):
     ):
         super().__init__()
 
-        self.conv = nn.Conv1d(
-            dim, dim_out * 2, kernel_size, dtype=dtype
-        ).to_float(dtype)
+        self.conv = nn.Conv1d(dim, dim_out * 2, kernel_size, dtype=dtype).to_float(
+            dtype
+        )
         self.activate = nn.SiLU()
 
     def construct(self, x):

@@ -29,16 +29,10 @@ def parse_args():
         help="path to load a config yaml file that describes the training recipes which will override the default arguments",
     )
     parser.add_argument(
-        "--model_config",
-        default="configs/ae/autoencoder_kl_f8.yaml",
-        type=str,
-        help="model arch config",
-    )
-    parser.add_argument(
         "--model_class",
-        default="magvit-3d",
+        default="vqvae-3d",
         type=str,
-        choices=["magvit-2d", "magvit-3d",],
+        choices=["vqvae-2d", "vqvae-3d",],
         help="model arch type",
     )
     parser.add_argument(
@@ -282,7 +276,6 @@ def parse_args():
             cfg = _check_cfgs_in_parser(cfg, parser)
             parser.set_defaults(**cfg)
     args = parser.parse_args()
-    # args.model_config = os.path.join(abs_path, args.model_config)
 
     logger.info(args)
     return args

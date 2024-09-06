@@ -6,7 +6,8 @@ import ml_collections
 
 from videogvt.config import vqgan2d_ucf101_config
 
-VARIANT = "VQGAN/3D"
+
+PRETRAINED_IMAGE_MODEL = "model_weights/vqvae-2d.ckpt"
 
 
 def get_config(config_str="MAGVIT-V2"):
@@ -14,39 +15,30 @@ def get_config(config_str="MAGVIT-V2"):
     version, *options = config_str.split("-")
 
     config = vqgan2d_ucf101_config.get_config(config_str)
-    config.experiment_name = f"UCF101_{VARIANT}"
-    model_class, model_type = VARIANT.split("/")
 
     # Overall
-    config.batch_size = 128
-    config.eval_batch_size = config.get_ref("batch_size") // 4
+    config.batch_size = 1
+    config.eval_batch_size = 32
     config.num_training_epochs = 500
 
     # Dataset.
     del config.num_train_sampled_frames
 
     # Model: vqvae
-    config.model_class = model_class
+    config.model_name = "vqvae-3d"
 
-    config.pretrained_image_model = True  # TODO(Lijun-Yu): 3d perceptual loss
-
-    config.vqgan.model_type = model_type
-
-    config.vqvae.architecture = "3dcnn"
     config.vqvae.channels = 3
-    config.vqvae.middle_channels = 18
+    config.vqvae.embedding_dim = 18
     config.vqvae.codebook_size = 262144 # 2^18
     config.vqvae.filters = 128
-    config.vqvae.downsample = "time+spatial"
-    config.vqvae.upsample = "time+spatial" # nearest+conv, deconv, time+spatial
     config.vqvae.activation_fn = "swish"
     config.vqvae.num_enc_res_blocks = 4
     config.vqvae.num_dec_res_blocks = 4
     config.vqvae.channel_multipliers = (1, 2, 2, 4)
-    config.vqvae.spatial_downsample = (True, True, True, True)
-    config.vqvae.temporal_downsample = (True, True, True, False)
+    config.vqvae.spatial_downsample = (True, True, True)
+    config.vqvae.temporal_downsample = (True, True, False)
     config.vqvae.num_groups = 32
-    config.vqvae.embedding_dim = 18
+    config.vqvae.num_frames = 17
 
     config.discriminator = ml_collections.ConfigDict()
     config.discriminator.filters = config.vqvae.get_oneway_ref("filters")
@@ -63,3 +55,4 @@ def get_config(config_str="MAGVIT-V2"):
     # Pretrained models on ImageNet.
     config.init_from = ml_collections.ConfigDict()
     config.init_from.inflation = "2d->3d"
+    config.pretrained_image_model = PRETRAINED_IMAGE_MODEL

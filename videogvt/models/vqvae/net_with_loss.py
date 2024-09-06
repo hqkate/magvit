@@ -43,6 +43,7 @@ class GeneratorWithLoss(nn.Cell):
         recons_weight=5.0,
         lecam_weight=0.001,
         discriminator=None,
+        is_video=True,
         dtype=ms.float32,
         **kwargs,
     ):
@@ -50,12 +51,9 @@ class GeneratorWithLoss(nn.Cell):
 
         # build perceptual models for loss compute
         self.vqvae = vqvae
-        # TODO: set dtype for LPIPS ?
         self.perceptual_loss = LPIPS()  # freeze params inside
-        # self.perceptual_loss.to_float(dtype)
 
         self.l1 = nn.L1Loss(reduction="none")
-        # self.mse = nn.MSELoss()
 
         self.disc_start = disc_start
         self.disc_weight = disc_weight
@@ -71,6 +69,7 @@ class GeneratorWithLoss(nn.Cell):
             self.has_disc = False
 
         self.dtype = dtype
+        self.is_video = is_video
 
     def loss_function(
         self,
@@ -78,8 +77,12 @@ class GeneratorWithLoss(nn.Cell):
         recons,
         cond=None,
     ):
-        x_reshape = _rearrange_in(x)
-        recons_reshape = _rearrange_in(recons)
+        if self.is_video:
+            x_reshape = _rearrange_in(x)
+            recons_reshape = _rearrange_in(recons)
+        else:
+            x_reshape = x
+            recons_reshape = recons
 
         # 2.1 entropy loss and commitment loss
 
@@ -91,7 +94,7 @@ class GeneratorWithLoss(nn.Cell):
             p_loss = self.perceptual_loss(recons_reshape, x_reshape)
             rec_loss = rec_loss + self.perceptual_weight * p_loss
 
-        loss += rec_loss.mean()
+        loss = rec_loss.mean()
 
         # 2.4 discriminator loss if enabled
         if self.has_disc:

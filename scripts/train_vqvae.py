@@ -9,11 +9,11 @@ import time
 import yaml
 from omegaconf import OmegaConf
 
-from utils.env import init_env
-from videogvt.config.vqgan3d_magvit_v2_config import get_config
+from utils.env import init_env, set_all_reduce_fusion
+from videogvt.config.vqgan3d_ucf101_config import get_config
 from videogvt.config.vqvae_train_args import parse_args
 from videogvt.data.loader import create_dataloader
-from videogvt.models.vqvae import VQVAE3D, VQVAEOpenSora, StyleGANDiscriminator
+from videogvt.models.vqvae import build_model, StyleGANDiscriminator
 from videogvt.models.vqvae.net_with_loss import DiscriminatorWithLoss, GeneratorWithLoss
 
 import mindspore as ms
@@ -37,7 +37,6 @@ from mindone.trainers.lr_schedule import create_scheduler
 # from mindone.trainers.optim import create_optimizer
 from mindone.trainers.train_step import TrainOneStepWrapper
 from mindone.utils.amp import auto_mixed_precision
-from mindone.utils.config import instantiate_from_config
 from mindone.utils.logger import set_logger
 from mindone.utils.params import count_params
 from mindcv.optim import create_optimizer
@@ -67,15 +66,18 @@ def create_loss_scaler(
 
 def main(args):
     # 1. init
-    # ascend_config={"precision_mode": "allow_fp32_to_fp16"}
-    ascend_config = {"precision_mode": "allow_mix_precision_bf16"}
-    device_id, rank_id, device_num = init_train_env(
+    rank_id, device_num = init_env(
         args.mode,
-        device_target=args.device_target,
         seed=args.seed,
         distributed=args.use_parallel,
-        ascend_config=ascend_config,
+        device_target=args.device_target,
+        max_device_memory=args.max_device_memory,
+        parallel_mode=args.parallel_mode,
+        jit_level=args.jit_level,
+        global_bf16=args.gloabal_bf16,
+        debug=args.debug,
     )
+
     set_logger(
         name="",
         output_dir=args.output_path,
@@ -87,15 +89,8 @@ def main(args):
     #  vqvae (G)
     model_config = get_config("B")
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-    model_class = {"magvit": VQVAE3D, "opensora": VQVAEOpenSora}[args.model_class]
-    vqvae = model_class(
-        model_config,
-        quantization="lfq",
-        is_training=True,
-        video_contains_first_frame=args.contains_first_frame,
-        separate_first_frame_encoding=args.separate_first_frame_encoding,
-        dtype=dtype,
-    )
+    vqvae = build_model(args.model_class, dtype, model_config)
+
     if args.pretrained is not None:
         logger.info(f"Loading vqvae from {args.pretrained}")
         ms.load_checkpoint(args.pretrained, vqvae, filter_prefix=None)
@@ -121,17 +116,27 @@ def main(args):
     # TODO: set softmax, sigmoid computed in FP32. manually set inside network since they are ops, instead of layers whose precision will be set by AMP level.
     if args.dtype not in ["fp32", "bf16"]:
         amp_level = "O2"
-        vqvae = auto_mixed_precision(vqvae, amp_level, dtype)
-        if use_discriminator:
-            disc = auto_mixed_precision(disc, amp_level, dtype)
-        logger.info(f"Set mixed precision to O2 with dtype={args.dtype}")
+        if not args.global_bf16:
+            vqvae = auto_mixed_precision(
+                vqvae,
+                amp_level = auto_mixed_precision(
+                    vqvae,
+                    amp_level=amp_level,
+                    dtype=dtype,
+                    custom_fp32_cells=[nn.GroupNorm] if args.vae_keep_gn_fp32 else [],
+                )
+            )
     else:
         amp_level = "O0"
 
     # 3. build net with loss (core)
     # G with loss
     vqvae_with_loss = GeneratorWithLoss(
-        vqvae, discriminator=disc, **model_config.lr_configs, dtype=dtype
+        vqvae,
+        discriminator=disc,
+        is_video=(args.dataset_name == "video"),
+        **model_config.lr_configs,
+        dtype=dtype,
     )
     disc_start = model_config.lr_configs.disc_start
 
@@ -202,6 +207,13 @@ def main(args):
         warmup_steps=args.warmup_steps,
         decay_steps=args.decay_steps,
         num_epochs=args.epochs,
+    )
+
+    set_all_reduce_fusion(
+        vqvae_with_loss.trainable_params(),
+        split_num=7,
+        distributed=args.use_parallel,
+        parallel_mode=args.parallel_mode,
     )
 
     # build optimizer

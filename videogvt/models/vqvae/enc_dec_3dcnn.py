@@ -24,11 +24,19 @@ class ResBlock(nn.Cell):
         # SCH: MAGVIT uses GroupNorm by default
         self.norm1 = GroupNormExtend(num_groups, in_channels)
         self.conv1 = conv_fn(
-            in_channels, self.filters, kernel_size=(3, 3, 3), has_bias=False, dtype=dtype
+            in_channels,
+            self.filters,
+            kernel_size=(3, 3, 3),
+            has_bias=False,
+            dtype=dtype,
         )
         self.norm2 = GroupNormExtend(num_groups, self.filters)
         self.conv2 = conv_fn(
-            self.filters, self.filters, kernel_size=(3, 3, 3), has_bias=False, dtype=dtype
+            self.filters,
+            self.filters,
+            kernel_size=(3, 3, 3),
+            has_bias=False,
+            dtype=dtype,
         )
         if in_channels != filters:
             if self.use_conv_shortcut:
@@ -127,7 +135,7 @@ class Encoder(nn.Cell):
                     )
                 else:
                     # if no t downsample, don't add since this does nothing for pipeline models
-                    self.conv_blocks.append(nn.Identity(prev_filters))  # Identity
+                    self.conv_blocks.append(nn.Identity())  # Identity
 
                 prev_filters = filters  # update in_channels
 
@@ -200,7 +208,11 @@ class Decoder(nn.Cell):
 
         # last conv
         self.conv1 = self.conv_fn(
-            self.embedding_dim, filters, kernel_size=(3, 3, 3), has_bias=True, dtype=dtype
+            self.embedding_dim,
+            filters,
+            kernel_size=(3, 3, 3),
+            has_bias=True,
+            dtype=dtype,
         )
 
         # last layer res block
@@ -241,12 +253,12 @@ class Decoder(nn.Cell):
                 else:
                     self.conv_blocks.insert(
                         0,
-                        nn.Identity(prev_filters),
+                        nn.Identity(),
                     )
 
         self.norm1 = GroupNormExtend(self.num_groups, prev_filters)
 
-        self.conv_out = self.conv_fn(filters, config.in_out_channels, 3, dtype=dtype)
+        self.conv_out = self.conv_fn(filters, config.channels, 3, dtype=dtype)
 
     def construct(self, x):
         x = self.conv1(x)
