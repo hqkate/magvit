@@ -72,12 +72,12 @@ class Encoder(nn.Cell):
         super().__init__()
 
         self.filters = config.filters # 128
-        self.num_res_blocks = config.num_res_blocks
+        self.num_res_blocks = config.num_enc_res_blocks
         self.num_blocks = len(config.channel_multipliers)
         self.channel_multipliers = config.channel_multipliers # (1, 2, 2, 4)
         self.spatial_downsample = config.spatial_downsample
         self.num_groups = config.num_groups
-        self.embedding_dim = config.latent_embed_dim  # num channels for latent vector
+        self.embedding_dim = config.embedding_dim  # num channels for latent vector
 
         self.activation_fn = get_activation_fn(config.activation_fn)
         self.activate = self.activation_fn()
@@ -92,7 +92,7 @@ class Encoder(nn.Cell):
 
         # first layer conv
         self.conv_in = self.conv_fn(
-            config.in_out_channels,
+            config.channels,
             self.filters,
             kernel_size=(3, 3),
             has_bias=False,
@@ -174,13 +174,13 @@ class Decoder(nn.Cell):
     ):
         super().__init__()
         self.filters = filters
-        self.in_out_channels = config.in_out_channels
-        self.num_res_blocks = config.num_res_blocks
+        self.in_out_channels = config.channels
+        self.num_res_blocks = config.num_dec_res_blocks
         self.num_blocks = len(config.channel_multipliers)
         self.channel_multipliers = config.channel_multipliers
         self.spatial_downsample = config.spatial_downsample
         self.num_groups = config.num_groups
-        self.embedding_dim = config.latent_embed_dim
+        self.embedding_dim = config.embedding_dim
         self.s_stride = 2
 
         self.activation_fn = get_activation_fn(config.activation_fn)

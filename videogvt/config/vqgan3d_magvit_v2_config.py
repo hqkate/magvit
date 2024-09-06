@@ -39,20 +39,18 @@ def get_config(config_str="MAGVIT-V2"):
     config.vqvae.filters = 128
     config.vqvae.downsample = "time+spatial"
     config.vqvae.upsample = "time+spatial" # nearest+conv, deconv, time+spatial
+    config.vqvae.activation_fn = "swish"
     config.vqvae.num_enc_res_blocks = 4
     config.vqvae.num_dec_res_blocks = 4
     config.vqvae.channel_multipliers = (1, 2, 2, 4)
+    config.vqvae.spatial_downsample = (True, True, True, True)
     config.vqvae.temporal_downsample = (True, True, True, False)
+    config.vqvae.num_groups = 32
     config.vqvae.embedding_dim = 18
 
     config.discriminator = ml_collections.ConfigDict()
     config.discriminator.filters = config.vqvae.get_oneway_ref("filters")
     config.discriminator.channel_multipliers = (2, 4, 4, 4, 4)
-
-    # Save memory
-    config.vqvae.num_enc_remat_blocks = 0
-    config.vqvae.num_dec_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
-    config.discriminator.num_remat_blocks = config.vqvae.get_ref("num_enc_remat_blocks")
 
     # Loss
     config.lr_configs.perceptual_weight = 0.1
