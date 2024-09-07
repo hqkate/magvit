@@ -37,7 +37,7 @@ Following the original paper, we use [ImageNet-1K](https://huggingface.co/datase
 
 In this repositry, we use [UCF-101](https://www.crcv.ucf.edu/data/UCF101.php) to train the VQVAE-3d.
 
-We use the Train/Test Splits for Action Recognition, the statistics are:
+We use the Train/Test Splits for *Action Recognition*, the statistics are:
 
 | Dataset | Train | Test |
 | --- | --- | --- |
@@ -54,22 +54,30 @@ The training of VQVAE can be divided into two stages: VQVAE-2d and VQVAE-3d, whe
 
 For the pretraining of VQVAE-2d, we provide a pretrained model weights as follow:
 
-| Model | Dataset | Image Size | Weights |
-|-------| ------- | -----------| -- |
-| VQVAE-2d | ImageNet | 128x128 | |
+| Model | Dataset | Image Size | Weights | PSNR | SSIM |
+|-------| ------- | -----------| ------- | ------- | -------|
+| VQVAE-2d | ImageNet | 128x128 | | | |
 
 If you would like you pretrain your weights, you can:
-- 1) Prepare datasets
+
+1) Prepare datasets
+
  We take ImageNet as an example
 
-- 2) Run the training script as below:
+2) Run the training script as below:
 
  ```
+ # standalone training
  bash scripts/run_train_vqvae_2d.sh
+
+ # parallel training
+ bash scripts/run_train_vqvae_2d_parallel.sh
  ```
 
-- 3) Inflate 2d to 3d
+3) Inflate 2d to 3d
+
  We provide a script for inflation, you can run the command:
+
  ```
  python tools/inflate_vae2d_to_3d.py --src VQVAE_2D_MODEL_PATH --target INFALTED_MODEL_PATH
  ```
@@ -81,8 +89,19 @@ Modify the path of pretrained VQVAE-2d model in [run_train_vqvae.sh](./scripts/r
 Run the training script as below:
 
  ```
+ # standalone training
  bash scripts/run_train_vqvae.sh
+
+ # parallel training
+  bash scripts/run_train_vqvae_parallel.sh
  ```
+
+ The VQVAE-3d model we trained is listed below:
+
+ | Model | Dataset | Image Size | Weights | PSNR | SSIM |
+ |-------| ------- | -----------| ------- | ------- | -------|
+ | VQVAE-3d | UCF-101 | 128x128 |  | | |
+
 
 ### 2. MAGVIT-v2
 

@@ -248,7 +248,7 @@ def main(args):
             disc_with_loss.discriminator.trainable_params(),
             betas=args.betas,
             name=args.optim,
-            lr=lr,  # since lr is a shared list
+            lr=lr,
             group_strategy=args.group_strategy,
             weight_decay=args.weight_decay,
         )
