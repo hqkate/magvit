@@ -53,6 +53,7 @@ def get_config(config_str="MAGVIT-V2"):
     config.lr_configs.disc_start = 1
 
     # LFQ
+    config.lfq = ml_collections.ConfigDict()
     config.lfq.dim = config.vqvae.embedding_dim
     config.lfq.codebook_size = config.vqvae.codebook_size
     config.lfq.entropy_loss_weight = config.lr_configs.entropy_weight

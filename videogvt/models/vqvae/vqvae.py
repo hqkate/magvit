@@ -73,7 +73,7 @@ class VQVAE_3D(VQVAE):
 
         self.time_downsample_factor = 2 ** sum(self.config.temporal_downsample)
         self.patch_size = (self.time_downsample_factor, 1, 1)
-        self.out_channels = self.config.in_out_channels
+        self.out_channels = self.config.channels
         self.num_frames = self.config.num_frames
 
         self.dtype = dtype
