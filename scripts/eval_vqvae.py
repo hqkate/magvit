@@ -12,12 +12,6 @@ import numpy as np
 import yaml
 from omegaconf import OmegaConf
 
-from videogvt.config.vqgan3d_ucf101_config import get_config
-from videogvt.data.loader import create_dataloader
-from videogvt.eval import calculate_psnr, calculate_ssim
-from videogvt.models.vqvae.lpips import LPIPS
-from videogvt.models.vqvae import build_model
-
 from PIL import Image
 from skimage.metrics import peak_signal_noise_ratio as calc_psnr
 from skimage.metrics import structural_similarity as calc_ssim
@@ -26,8 +20,16 @@ from tqdm import tqdm
 import mindspore as ms
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
-mindone_lib_path = os.path.abspath(os.path.join(__dir__, "../../"))
+mindone_lib_path = os.path.abspath(os.path.join(__dir__, "../../../"))
 sys.path.insert(0, mindone_lib_path)
+sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
+
+from videogvt.config.vqgan3d_ucf101_config import get_config
+from videogvt.data.loader import create_dataloader
+from videogvt.eval import calculate_psnr, calculate_ssim
+from videogvt.models.vqvae.lpips import LPIPS
+from videogvt.models.vqvae import build_model
+
 from mindone.utils.config import instantiate_from_config, str2bool
 from mindone.utils.logger import set_logger
 
@@ -66,7 +68,7 @@ def main(args):
     config = get_config("B")
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
 
-    model = build_model(args.model_class, dtype, config, is_training=False)
+    model = build_model(args.model_class, config, is_training=False, dtype=dtype)
     param_dict = ms.load_checkpoint(args.ckpt_path)
     ms.load_param_into_net(model, param_dict)
     model.set_train(False)

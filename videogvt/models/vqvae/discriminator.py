@@ -21,7 +21,7 @@ import numpy as np
 import mindspore as ms
 from mindspore import nn, ops
 
-from videogvt.models.vqvae.model_utils import GroupNormExtend, ResnetBlock3D
+from .model_utils import GroupNormExtend
 
 
 def get_pad_layer(pad_type):

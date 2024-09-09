@@ -75,25 +75,27 @@ class CosineSimLinear(nn.Cell):
 class LFQ(nn.Cell):
     def __init__(
         self,
-        dim=None,
-        codebook_size=None,
-        entropy_loss_weight=0.1,
-        commitment_loss_weight=0.25,
-        diversity_gamma=1.0,
-        straight_through_activation="identity",
-        num_codebooks=1,
-        keep_num_codebooks_dim=None,
-        codebook_scale=1.0,  # for residual LFQ, codebook scaled down by 2x at each layer
-        frac_per_sample_entropy=1.0,  # make less than 1. to only use a random fraction of the probs for per sample entropy
-        inv_temperature=100.0,
-        soft_clamp_input_value=None,
-        cosine_sim_project_in=False,
-        cosine_sim_project_in_scale=None,
+        config,
         return_loss_breakdown=False,
         is_training=False,
         dtype=ms.float32,
     ):
         super(LFQ, self).__init__()
+
+        dim = config.dim
+        codebook_size = config.codebook_size
+        entropy_loss_weight = config.entropy_loss_weight
+        commitment_loss_weight = config.commitment_loss_weight
+        diversity_gamma = config.diversity_gamma
+        straight_through_activation = config.straight_through_activation
+        num_codebooks = config.num_codebooks
+        keep_num_codebooks_dim = config.keep_num_codebooks_dim
+        codebook_scale = config.codebook_scale # for residual LFQ, codebook scaled down by 2x at each layer
+        frac_per_sample_entropy = config.frac_per_sample_entropy  # make less than 1. to only use a random fraction of the probs for per sample entropy
+        inv_temperature = config.inv_temperature
+        soft_clamp_input_value = config.soft_clamp_input_value
+        cosine_sim_project_in = config.cosine_sim_project_in
+        cosine_sim_project_in_scale = config.cosine_sim_project_in_scale
 
         # some assert validations
 

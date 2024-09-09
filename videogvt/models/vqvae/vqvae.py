@@ -60,15 +60,15 @@ class VQVAE_3D(VQVAE):
     ):
         super().__init__()
 
-        self.config = config
-
+        self.config = config.vqvae
+        self.dtype = dtype
         self.encoder = enc_dec_3dcnn.Encoder(config=self.config, dtype=self.dtype)
         self.decoder = enc_dec_3dcnn.Decoder(config=self.config, dtype=self.dtype)
         self.post_quant_conv = CausalConv3d(
-            self.config.embed_dim, self.config.latent_embed_dim, 1, dtype=dtype
+            self.config.embedding_dim, self.config.embedding_dim, 1, dtype=dtype
         )
         self.quantizer = LFQ(
-            config=self.config, is_training=is_training, dtype=self.dtype
+            config=config.lfq, is_training=is_training, dtype=self.dtype
         )
 
         self.time_downsample_factor = 2 ** sum(self.config.temporal_downsample)
@@ -140,7 +140,7 @@ class VQVAE_2D(VQVAE):
     ):
         super().__init__()
 
-        self.config = config
+        self.config = config.vqvae
 
         self.space_downsample_factor = 2 ** sum(self.config.spatial_downsample)
         self.patch_size = (self.space_downsample_factor, 1, 1)
@@ -150,14 +150,14 @@ class VQVAE_2D(VQVAE):
         self.encoder = enc_dec_2dcnn.Encoder(self.config, dtype=dtype)
         self.decoder = enc_dec_2dcnn.Decoder(self.config, dtype=dtype)
         self.quant_conv = nn.Conv2d(
-            self.config.latent_embed_dim, self.config.embed_dim, 1, dtype=dtype
+            self.config.embedding_dim, self.config.embedding_dim, 1, dtype=dtype
         )
         self.post_quant_conv = nn.Conv2d(
-            self.config.embed_dim, self.config.latent_embed_dim, 1, dtype=dtype
+            self.config.embedding_dim, self.config.embedding_dim, 1, dtype=dtype
         )
 
         self.quantizer = LFQ2d(
-            config=self.config,
+            config=config.lfq,
             is_training=is_training,
             dtype=dtype,
         )

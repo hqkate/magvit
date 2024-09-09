@@ -6,15 +6,7 @@ import shutil
 import sys
 import time
 import math
-
 import yaml
-
-from utils.env import init_env, set_all_reduce_fusion
-from videogvt.config.vqgan3d_ucf101_config import get_config
-from videogvt.config.vqvae_train_args import parse_args
-from videogvt.data.loader import create_dataloader
-from videogvt.models.vqvae import build_model, StyleGANDiscriminator
-from videogvt.models.vqvae.net_with_loss import DiscriminatorWithLoss, GeneratorWithLoss
 
 import mindspore as ms
 from mindspore import Model, nn
@@ -22,8 +14,16 @@ from mindspore.nn.wrap.loss_scale import DynamicLossScaleUpdateCell
 from mindspore.train.callback import TimeMonitor
 
 __dir__ = os.path.dirname(os.path.abspath(__file__))
-mindone_lib_path = os.path.abspath(os.path.join(__dir__, "../../"))
+mindone_lib_path = os.path.abspath(os.path.join(__dir__, "../../../"))
 sys.path.insert(0, mindone_lib_path)
+sys.path.insert(0, os.path.abspath(os.path.join(__dir__, "..")))
+
+from utils.env import init_env, set_all_reduce_fusion
+from videogvt.config.vqgan3d_ucf101_config import get_config
+from videogvt.config.vqvae_train_args import parse_args
+from videogvt.data.loader import create_dataloader
+from videogvt.models.vqvae import build_model, StyleGANDiscriminator
+from videogvt.models.vqvae.net_with_loss import DiscriminatorWithLoss, GeneratorWithLoss
 
 from mindone.trainers.callback import (
     EvalSaveCallback,
@@ -74,7 +74,7 @@ def main(args):
         max_device_memory=args.max_device_memory,
         parallel_mode=args.parallel_mode,
         jit_level=args.jit_level,
-        global_bf16=args.gloabal_bf16,
+        global_bf16=args.global_bf16,
         debug=args.debug,
     )
 
@@ -89,7 +89,7 @@ def main(args):
     #  vqvae (G)
     model_config = get_config("B")
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-    vqvae = build_model(args.model_class, dtype, model_config)
+    vqvae = build_model(args.model_class, model_config, is_training=True, dtype=dtype)
 
     # discriminator (D)
     use_discriminator = args.use_discriminator and (
@@ -103,7 +103,7 @@ def main(args):
         crop_size = int(args.crop_size)
         frame_size = int(args.num_frames)
         disc = StyleGANDiscriminator(
-            model_config, crop_size, crop_size, frame_size, dtype=dtype
+            model_config.discriminator, crop_size, crop_size, frame_size, dtype=dtype
         )
     else:
         disc = None

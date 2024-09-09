@@ -75,7 +75,7 @@ class Encoder(nn.Cell):
     def __init__(
         self,
         config,
-        dtype=ms.flaot32,
+        dtype=ms.float32,
     ):
         super().__init__()
         self.filters = config.filters
@@ -101,7 +101,7 @@ class Encoder(nn.Cell):
         # first layer conv
         self.conv_in = self.conv_fn(
             config.channels,
-            filters,
+            self.filters,
             kernel_size=(3, 3, 3),
             has_bias=False,
             dtype=dtype,
@@ -152,7 +152,7 @@ class Encoder(nn.Cell):
             prev_filters,
             self.embedding_dim,
             kernel_size=(1, 1, 1),
-            padding="same",
+            pad_mode="same",
             dtype=dtype,
         )
 
@@ -182,7 +182,7 @@ class Decoder(nn.Cell):
         dtype=ms.float32,
     ):
         super().__init__()
-        self.filters = filters
+        self.filters = config.filters
         self.num_res_blocks = config.num_dec_res_blocks
         self.num_blocks = len(config.channel_multipliers)
         self.channel_multipliers = config.channel_multipliers

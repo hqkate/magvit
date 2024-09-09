@@ -67,7 +67,7 @@ class Encoder(nn.Cell):
     def __init__(
         self,
         config,
-        dtype=ms.flaot32,
+        dtype=ms.float32,
     ):
         super().__init__()
 
@@ -173,7 +173,7 @@ class Decoder(nn.Cell):
         dtype=ms.float32,
     ):
         super().__init__()
-        self.filters = filters
+        self.filters = config.filters
         self.in_out_channels = config.channels
         self.num_res_blocks = config.num_dec_res_blocks
         self.num_blocks = len(config.channel_multipliers)
