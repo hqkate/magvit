@@ -64,6 +64,9 @@ class VQVAE_3D(VQVAE):
         self.dtype = dtype
         self.encoder = enc_dec_3dcnn.Encoder(config=self.config, dtype=self.dtype)
         self.decoder = enc_dec_3dcnn.Decoder(config=self.config, dtype=self.dtype)
+        self.quant_conv = CausalConv3d(
+            self.config.embedding_dim, self.config.embedding_dim, 1, dtype=dtype
+        )
         self.post_quant_conv = CausalConv3d(
             self.config.embedding_dim, self.config.embedding_dim, 1, dtype=dtype
         )

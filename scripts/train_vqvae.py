@@ -192,16 +192,7 @@ def main(args):
     else:
         learning_rate = args.base_learning_rate
 
-    if args.max_steps is not None:
-        assert args.max_steps > 0, f"max_steps should a positive integer, but got {args.max_steps}"
-        total_train_steps = args.max_steps
-        args.epochs = math.ceil(total_train_steps / dataset_size)
-    else:
-        # use args.epochs
-        assert (
-            args.epochs is not None and args.epochs > 0
-        ), f"When args.max_steps is not provided, args.epochs must be a positive integer! but got {args.epochs}"
-        total_train_steps = args.epochs * dataset_size
+    total_train_steps = args.epochs * dataset_size
 
     if not args.decay_steps:
         args.decay_steps = max(1, total_train_steps - args.warmup_steps)
@@ -273,7 +264,6 @@ def main(args):
             vqvae_with_loss.vqvae,
             ema_decay=args.ema_decay,
             offloading=False,
-            dtype=dtype,
         ).to_float(dtype)
         if args.use_ema
         else None
@@ -361,7 +351,7 @@ def main(args):
 
     if not use_discriminator:
         if args.global_bf16:
-            model = Model(training_step_vqvae, map_level="O0")
+            model = Model(training_step_vqvae, amp_level="O0")
         else:
             model = Model(training_step_vqvae)
         
@@ -383,7 +373,7 @@ def main(args):
                 start_epoch=start_epoch,
                 model_name="vqvae_3d",
                 record_lr=False,
-                save_training_resume=args.save_training_resume,
+                # save_training_resume=args.save_training_resume,
             )
             callback.append(save_cb)
             if args.profile:
@@ -396,7 +386,7 @@ def main(args):
             dataset,
             callbacks=callback,
             dataset_sink_mode=args.dataset_sink_mode,
-            sink_size=args.sink_size,
+            # sink_size=args.sink_size,
             initial_epoch=start_epoch,
         )
 
@@ -451,23 +441,23 @@ def main(args):
                         vqvae_with_loss.set_train(False)
                         disc_with_loss.set_train(False)
                         ckpt_manager.save(vqvae_with_loss.vqvae, None, ckpt_name=ckpt_name, append_dict=None)
-                        if args.save_training_resume:
-                            ms.save_checkpoint(
-                                training_step_vqvae,
-                                os.path.join(ckpt_dir, "train_resume.ckpt"),
-                                append_dict={
-                                    "epoch_num": cur_epoch - 1,
-                                    "loss_scale": loss_scaler_vqvae.loss_scale_value,
-                                },
-                            )
-                            ms.save_checkpoint(
-                                training_step_disc,
-                                os.path.join(ckpt_dir, "train_resume_disc.ckpt"),
-                                append_dict={
-                                    "epoch_num": cur_epoch - 1,
-                                    "loss_scale": loss_scaler_disc.loss_scale_value,
-                                },
-                            )
+                        # if args.save_training_resume:
+                        #     ms.save_checkpoint(
+                        #         training_step_vqvae,
+                        #         os.path.join(ckpt_dir, "train_resume.ckpt"),
+                        #         append_dict={
+                        #             "epoch_num": cur_epoch - 1,
+                        #             "loss_scale": loss_scaler_vqvae.loss_scale_value,
+                        #         },
+                        #     )
+                        #     ms.save_checkpoint(
+                        #         training_step_disc,
+                        #         os.path.join(ckpt_dir, "train_resume_disc.ckpt"),
+                        #         append_dict={
+                        #             "epoch_num": cur_epoch - 1,
+                        #             "loss_scale": loss_scaler_disc.loss_scale_value,
+                        #         },
+                        #     )
                         if ema is not None:
                             ema.swap_after_eval()
                         vqvae_with_loss.set_train(True)
