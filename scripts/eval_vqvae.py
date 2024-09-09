@@ -16,7 +16,7 @@ from videogvt.config.vqgan3d_ucf101_config import get_config
 from videogvt.data.loader import create_dataloader
 from videogvt.eval import calculate_psnr, calculate_ssim
 from videogvt.models.vqvae.lpips import LPIPS
-from videogvt.models.vqvae import VQVAE3D
+from videogvt.models.vqvae import build_model
 
 from PIL import Image
 from skimage.metrics import peak_signal_noise_ratio as calc_psnr
@@ -60,26 +60,20 @@ def visualize(recons, x=None, save_fn="tmp_vae_recons"):
 
 
 def main(args):
-    ms.set_context(mode=args.mode)
+    ms.set_context(mode=args.mode, ascend_config={"precision_mode": "allow_mix_precision_bf16"})
     set_logger(name="", output_dir=args.output_path, rank=0)
 
     config = get_config("B")
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-    model = VQVAE3D(
-        config,
-        quantization="lfq",
-        is_training=False,
-        video_contains_first_frame=True,
-        separate_first_frame_encoding=True,
-        dtype=dtype,
-    )
-    model.init_from_ckpt(args.ckpt_path)
+
+    model = build_model(args.model_class, dtype, config, is_training=False)
+    param_dict = ms.load_checkpoint(args.ckpt_path)
+    ms.load_param_into_net(model, param_dict)
+    model.set_train(False)
     logger.info(f"Loaded checkpoint from  {args.ckpt_path}")
 
     if args.eval_loss:
         lpips_loss_fn = LPIPS()
-
-    model.set_train(False)
 
     ds_config = dict(
         csv_path=args.csv_path,
@@ -93,10 +87,11 @@ def main(args):
         random_crop=False,
     )
 
+    ds_name = "video" if args.class_name == "vqvae-3d" else "image"
     dataset = create_dataloader(
         ds_config=ds_config,
         batch_size=args.batch_size,
-        ds_name="video",
+        ds_name=ds_name,
         num_parallel_workers=args.num_parallel_workers,
         shuffle=False,
         drop_remainder=False,
@@ -116,11 +111,10 @@ def main(args):
     psnr_list = []
     ssim_list = []
     for step, data in tqdm(enumerate(ds_iter)):
-        x = data["video"]
+        x = data["video"].to(dtype)
         start_time = time.time()
 
-        _, z_q, _, _ = model.encode(x)
-        recons = model.decode(z_q)
+        recons = model._forward(x)
 
         infer_time = time.time() - start_time
         mean_infer_time += infer_time
@@ -167,16 +161,17 @@ def main(args):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_config",
-        default="configs/autoencoder_kl_f8.yaml",
-        type=str,
-        help="model architecture config",
-    )
-    parser.add_argument(
         "--ckpt_path",
         default="outputs/vae_train/ckpt/vae_kl_f8-e10.ckpt",
         type=str,
         help="checkpoint path",
+    )
+    parser.add_argument(
+        "--model_class",
+        default="vqvae-3d",
+        type=str,
+        choices=["vqvae-2d", "vqvae-3d",],
+        help="model arch type",
     )
     parser.add_argument(
         "--csv_path",

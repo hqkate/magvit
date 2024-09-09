@@ -1,7 +1,10 @@
 import mindspore as ms
-
+import logging
 from .vqvae import VQVAE_2D, VQVAE_3D
 from .discriminator import StyleGANDiscriminator
+
+
+logger = logging.getLogger(__name__)
 
 
 def build_model(model_name, model_config, is_training=True, dtype=ms.float32):
@@ -23,5 +26,6 @@ def build_model(model_name, model_config, is_training=True, dtype=ms.float32):
     if model_config.from_pretrained is not None:
         param_dict = ms.load_checkpoint(model_config.from_pretrained)
         ms.load_param_into_net(model, param_dict)
+        logger.info(f"Loading vqvae from {model_config.from_pretrained}.")
 
     return model

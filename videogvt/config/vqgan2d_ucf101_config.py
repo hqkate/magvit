@@ -119,7 +119,7 @@ def get_config(config_str="B"):
 
     # Pretrained model on ImageNet.
     config.init_from = ml_collections.ConfigDict()
-    config.init_from.checkpoint_path = {
+    config.from_pretrained = {
         "B": "gs://magvit/models/imagenet_2d_base",
         "L": "gs://magvit/models/imagenet_2d_large",
     }[version]

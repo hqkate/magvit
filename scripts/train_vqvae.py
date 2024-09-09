@@ -5,9 +5,9 @@ import os
 import shutil
 import sys
 import time
+import math
 
 import yaml
-from omegaconf import OmegaConf
 
 from utils.env import init_env, set_all_reduce_fusion
 from videogvt.config.vqgan3d_ucf101_config import get_config
@@ -91,10 +91,6 @@ def main(args):
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
     vqvae = build_model(args.model_class, dtype, model_config)
 
-    if args.pretrained is not None:
-        logger.info(f"Loading vqvae from {args.pretrained}")
-        ms.load_checkpoint(args.pretrained, vqvae, filter_prefix=None)
-
     # discriminator (D)
     use_discriminator = args.use_discriminator and (
         model_config.lr_configs.disc_weight > 0.0
@@ -114,7 +110,7 @@ def main(args):
 
     # mixed precision
     # TODO: set softmax, sigmoid computed in FP32. manually set inside network since they are ops, instead of layers whose precision will be set by AMP level.
-    if args.dtype not in ["fp32", "bf16"]:
+    if args.dtype not in ["fp16", "bf16"]:
         amp_level = "O2"
         if not args.global_bf16:
             vqvae = auto_mixed_precision(
@@ -196,8 +192,19 @@ def main(args):
     else:
         learning_rate = args.base_learning_rate
 
+    if args.max_steps is not None:
+        assert args.max_steps > 0, f"max_steps should a positive integer, but got {args.max_steps}"
+        total_train_steps = args.max_steps
+        args.epochs = math.ceil(total_train_steps / dataset_size)
+    else:
+        # use args.epochs
+        assert (
+            args.epochs is not None and args.epochs > 0
+        ), f"When args.max_steps is not provided, args.epochs must be a positive integer! but got {args.epochs}"
+        total_train_steps = args.epochs * dataset_size
+
     if not args.decay_steps:
-        args.decay_steps = max(1, args.epochs * dataset_size - args.warmup_steps)
+        args.decay_steps = max(1, total_train_steps - args.warmup_steps)
 
     lr = create_scheduler(
         steps_per_epoch=dataset_size,
@@ -232,8 +239,9 @@ def main(args):
         weight_decay=args.weight_decay,
         lr=lr,
         eps=1e-08,
-        beta1=0.5,
-        beta2=0.99,
+        beta1=0.9,
+        beta2=0.999,
+        weight_decay_filter="norm_and_bias",
     )
 
     loss_scaler_vqvae = create_loss_scaler(
@@ -265,7 +273,7 @@ def main(args):
             vqvae_with_loss.vqvae,
             ema_decay=args.ema_decay,
             offloading=False,
-            dtype=dtype
+            dtype=dtype,
         ).to_float(dtype)
         if args.use_ema
         else None
@@ -346,76 +354,138 @@ def main(args):
 
     logger.info("Start training...")
     # backup config files
-    # shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
+    args.config = "videogvt/config/vqgan3d_ucf101_config.py"
+    shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
+    with open(os.path.join(args.output_path, "args.yaml"), "w") as f:
+        yaml.safe_dump(vars(args), stream=f, default_flow_style=False, sort_keys=False)
 
-    # with open(os.path.join(args.output_path, "args.yaml"), "w") as f:
-    #     yaml.safe_dump(vars(args), stream=f, default_flow_style=False, sort_keys=False)
+    if not use_discriminator:
+        if args.global_bf16:
+            model = Model(training_step_vqvae, map_level="O0")
+        else:
+            model = Model(training_step_vqvae)
+        
+        # callbacks
+        callback = [TimeMonitor(args.log_interval)]
+        ofm_cb = OverflowMonitor()
+        callback.append(ofm_cb)
 
-    if rank_id == 0:
-        ckpt_manager = CheckpointManager(ckpt_dir, "latest_k", k=args.ckpt_max_keep)
-
-    # output_numpy=True ?
-    ds_iter = dataset.create_dict_iterator(args.epochs - start_epoch)
-    avg_loss = 0.0
-
-    for epoch in range(start_epoch, args.epochs):
-        start_time_e = time.time()
-        for step, data in enumerate(ds_iter):
-            start_time_s = time.time()
-            x = data[args.dataset_name]
-
-            global_step = epoch * dataset_size + step
-            global_step = ms.Tensor(global_step, dtype=ms.int64)
-
-            # NOTE: inputs must match the order in GeneratorWithLoss.construct
-            loss_vqvae_t, overflow, scaling_sens = training_step_vqvae(x)
-
-            if use_discriminator:
-                loss_disc_t, overflow_d, scaling_sens_d = training_step_disc(x)
-
-            cur_global_step = (
-                epoch * dataset_size + step + 1
-            )  # starting from 1 for logging
-            if overflow:
-                logger.warning(f"Overflow occurs in step {cur_global_step}")
-
-            # log
-            loss_vqvae = float(loss_vqvae_t.asnumpy())
-            avg_loss += loss_vqvae
-            step_time = time.time() - start_time_s
-            if (step+1) % args.log_interval == 0:
-                avg_loss /= float(args.log_interval)
-                logger.info(
-                    f"E: {epoch+1}, S: {step+1}, Loss vqvae avg: {avg_loss:.4f}, Step time: {step_time*1000:.2f}ms"
-                )
-                avg_loss = 0.0
-
-                if use_discriminator:
-                    loss_disc = float(loss_disc_t.asnumpy())
-                    logger.info(f"Loss disc: {loss_disc:.4f}")
-
-        epoch_cost = time.time() - start_time_e
-        per_step_time = epoch_cost / dataset_size
-        cur_epoch = epoch + 1
-        logger.info(
-            f"Epoch:[{int(cur_epoch):>3d}/{int(args.epochs):>3d}], "
-            f"epoch time:{epoch_cost:.2f}s, per step time:{per_step_time*1000:.2f}ms, "
-        )
         if rank_id == 0:
-            if (cur_epoch % args.ckpt_save_interval == 0) or (
-                cur_epoch == args.epochs
-            ):
-                ckpt_name = f"vqvae_cb_f8-e{cur_epoch}.ckpt"
-                if ema is not None:
-                    ema.swap_before_eval()
+            save_cb = EvalSaveCallback(
+                network=vqvae_with_loss.vqvae,
+                rank_id=rank_id,
+                ckpt_save_dir=ckpt_dir,
+                ema=ema,
+                ckpt_save_policy="latest_k",
+                ckpt_max_keep=args.ckpt_max_keep,
+                ckpt_save_interval=args.ckpt_save_interval,
+                log_interval=args.log_interval,
+                start_epoch=start_epoch,
+                model_name="vqvae_3d",
+                record_lr=False,
+                save_training_resume=args.save_training_resume,
+            )
+            callback.append(save_cb)
+            if args.profile:
+                callback.append(ProfilerCallback())
 
-                ckpt_manager.save(
-                    vqvae, None, ckpt_name=ckpt_name, append_dict=None
-                )
-                if ema is not None:
-                    ema.swap_after_eval()
+            logger.info("Start training...")
 
-        # TODO: eval while training
+        model.train(
+            args.epochs,
+            dataset,
+            callbacks=callback,
+            dataset_sink_mode=args.dataset_sink_mode,
+            sink_size=args.sink_size,
+            initial_epoch=start_epoch,
+        )
+
+    else:
+        if rank_id == 0:
+            ckpt_manager = CheckpointManager(ckpt_dir, "latest_k", k=args.ckpt_max_keep)
+
+        # output_numpy=True ?
+        ds_iter = dataset.create_dict_iterator(args.epochs - start_epoch)
+        bp_steps = 0
+
+        for epoch in range(start_epoch, args.epochs):
+            epoch_loss = 0.0
+            avg_loss = 0.0
+            start_time_e = time.time()
+
+            for step, data in enumerate(ds_iter):
+                start_time_s = time.time()
+                x = data[args.dataset_name].to(dtype)
+
+                cur_global_step = epoch * dataset_size + step + 1
+
+                # NOTE: inputs must match the order in GeneratorWithLoss.construct
+                loss_vqvae_t, overflow, scaling_sens = training_step_vqvae(x)
+
+                if overflow:
+                    logger.warning(f"Overflow occurs in step {cur_global_step}")
+
+                # loss
+                loss_vqvae = float(loss_vqvae_t.asnumpy())
+                avg_loss += loss_vqvae
+                epoch_loss += loss_vqvae
+
+                # log
+                step_time = time.time() - start_time_s
+                if (step+1) % args.log_interval == 0:
+                    avg_loss /= float(args.log_interval)
+                    logger.info(
+                        f"E: {epoch+1}, S: {step+1}, Loss vqvae avg: {avg_loss:.4f}, Step time: {step_time*1000:.2f}ms"
+                    )
+                    avg_loss = 0.0
+                    bp_steps += 1
+
+                if rank_id == 0 and args.step_mode:
+                    cur_epoch = epoch + 1
+                    if (cur_global_step % args.ckpt_save_interval == 0) or (cur_global_step == total_train_steps):
+                        ckpt_name = (
+                            f"vae_3d-s{cur_global_step}.ckpt"
+                        )
+                        if ema is not None:
+                            ema.swap_before_eval()
+                        vqvae_with_loss.set_train(False)
+                        disc_with_loss.set_train(False)
+                        ckpt_manager.save(vqvae_with_loss.vqvae, None, ckpt_name=ckpt_name, append_dict=None)
+                        if args.save_training_resume:
+                            ms.save_checkpoint(
+                                training_step_vqvae,
+                                os.path.join(ckpt_dir, "train_resume.ckpt"),
+                                append_dict={
+                                    "epoch_num": cur_epoch - 1,
+                                    "loss_scale": loss_scaler_vqvae.loss_scale_value,
+                                },
+                            )
+                            ms.save_checkpoint(
+                                training_step_disc,
+                                os.path.join(ckpt_dir, "train_resume_disc.ckpt"),
+                                append_dict={
+                                    "epoch_num": cur_epoch - 1,
+                                    "loss_scale": loss_scaler_disc.loss_scale_value,
+                                },
+                            )
+                        if ema is not None:
+                            ema.swap_after_eval()
+                        vqvae_with_loss.set_train(True)
+                        disc_with_loss.set_train(True)
+
+                if cur_global_step == total_train_steps:
+                    break
+
+            epoch_cost = time.time() - start_time_e
+            per_step_time = epoch_cost / dataset_size
+            cur_epoch = epoch + 1
+            epoch_loss /= dataset_size
+            logger.info(
+                f"Epoch:[{int(cur_epoch):>3d}/{int(args.epochs):>3d}], loss avg: {epoch_loss:.4f},"
+                f"epoch time:{epoch_cost:.2f}s, per step time:{per_step_time*1000:.2f}ms, "
+            )
+
+            # TODO: eval while training
 
 
 if __name__ == "__main__":

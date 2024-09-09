@@ -26,6 +26,18 @@ class VQVAE(nn.Cell):
         Apply decode to `x`.
         """
 
+    def _forward(self, x):
+        # encode
+        z_e = self.encode(x)
+
+        # quantization
+        z_q, _, _ = self.quantizer(z_e)
+
+        # decode
+        recon_video = self.decode(z_q)
+
+        return recon_video
+
     def construct(self, x):
         # encode
         z_e = self.encode(x)
@@ -89,6 +101,20 @@ class VQVAE_3D(VQVAE):
         x = x[:, :, time_padding:]
         return x
 
+    def _forward(self, x):
+        # encode
+        z_e = self.encode(x)
+
+        # quantization
+        embed_dtype = z_e.dtype
+        z_e = z_e.astype(self.dtype)
+        z_q, indices, aux_loss = self.quantizer(z_e)
+
+        # decode
+        z_q = z_q.astype(embed_dtype)
+        recon_video = self.decode(z_q)
+        return recon_video
+
     def construct(self, x):
         # encode
         z_e = self.encode(x)
@@ -145,6 +171,9 @@ class VQVAE_2D(VQVAE):
         z = self.post_quant_conv(z)
         x = self.decoder(z)
         return x
+
+    def _forward(self, x):
+        return super()._forward(x)
 
     def construct(self, x):
         return super().construct(x)

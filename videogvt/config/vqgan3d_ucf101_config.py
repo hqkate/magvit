@@ -55,4 +55,4 @@ def get_config(config_str="MAGVIT-V2"):
     # Pretrained models on ImageNet.
     config.init_from = ml_collections.ConfigDict()
     config.init_from.inflation = "2d->3d"
-    config.pretrained_image_model = PRETRAINED_IMAGE_MODEL
+    config.from_pretrained = PRETRAINED_IMAGE_MODEL
