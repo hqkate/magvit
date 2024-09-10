@@ -25,7 +25,7 @@ python scripts/train_vqvae.py \
   --betas 0.99 \
   --weight_decay 0.01 \
   --warmup_steps 1000 \
-  --base_learning_rate 1.0e-05 \
+  --base_learning_rate 2.0e-05 \
   --end_learning_rate 1.0e-07 \
   --scale_lr False \
   --init_loss_scale 1024 \

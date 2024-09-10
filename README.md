@@ -56,7 +56,7 @@ For the pretraining of VQVAE-2d, we provide a pretrained model weights as follow
 
 | Model | Dataset | Image Size | Weights | PSNR | SSIM |
 |-------| ------- | -----------| ------- | ------- | -------|
-| VQVAE-2d | ImageNet | 128x128 | | | |
+| VQVAE-2d | ImageNet | 128x128 | | 20.013 | 0.5734 |
 
 If you would like you pretrain your weights, you can:
 
@@ -84,7 +84,7 @@ If you would like you pretrain your weights, you can:
 
 #### 1.2 VQVAE-3d
 
-Modify the path of pretrained VQVAE-2d model in [run_train_vqvae.sh](./scripts/run_eval_vqvae.sh)
+Modify the path of pretrained VQVAE-2d model in [run_train_vqvae.sh](./scripts/run_train_vqvae.sh) / [run_train_vqvae_parallel.sh](./scripts/run_train_vqvae_parallel.sh)
 
 Run the training script as below:
 
@@ -100,7 +100,7 @@ Run the training script as below:
 
  | Model | Dataset | Image Size | Weights | PSNR | SSIM |
  |-------| ------- | -----------| ------- | ------- | -------|
- | VQVAE-3d | UCF-101 | 128x128 |  | | |
+ | VQVAE-3d | UCF-101 | 128x128 |  | 21.6529 | 0.7415 |
 
 
 ### 2. MAGVIT-v2

@@ -27,7 +27,7 @@ msrun --bind_core=True --master_port=8090 --worker_num=8 --local_worker_num=8 --
     --use_discriminator False \
     --use_ema True \
     --dataset_name video \
-    --data_path ./datasets/ucf101/rec_train/ \
+    --data_path ./datasets/ucf101/train/ \
     --num_frames 17 \
     --frame_stride 1 \
     --size 128 \
