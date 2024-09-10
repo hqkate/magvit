@@ -121,7 +121,7 @@ class Encoder(nn.Cell):
                             prev_filters,
                             filters,
                             kernel_size=(3, 3),
-                            strides=(s_stride, s_stride),
+                            stride=(s_stride, s_stride),
                         )
                     )
                     prev_filters = filters  # update in_channels
@@ -143,7 +143,7 @@ class Encoder(nn.Cell):
             prev_filters,
             self.embedding_dim,
             kernel_size=(1, 1),
-            padding="same",
+            pad_mode="same",
             dtype=dtype,
         )
 

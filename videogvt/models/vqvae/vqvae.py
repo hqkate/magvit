@@ -105,7 +105,7 @@ class VQVAE_2D(nn.Cell):
 
         self.space_downsample_factor = 2 ** sum(self.config.spatial_downsample)
         self.patch_size = (self.space_downsample_factor, 1, 1)
-        self.out_channels = self.config.in_out_channels
+        self.out_channels = self.config.channels
 
         # NOTE: following MAGVIT, conv in bias=False in encoder first conv
         self.encoder = enc_dec_2dcnn.Encoder(self.config, dtype=dtype)

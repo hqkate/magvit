@@ -36,12 +36,6 @@ def parse_args():
         help="model arch type",
     )
     parser.add_argument(
-        "--pretrained",
-        default=None,
-        type=str,
-        help="path to pretrained autoencoder checkpoint",
-    )
-    parser.add_argument(
         "--use_parallel", default=False, type=str2bool, help="use parallel"
     )
     parser.add_argument("--parallel_mode", default="data", type=str, choices=["data", "optim"], help="parallel mode: data/optim")
