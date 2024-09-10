@@ -35,6 +35,7 @@ def create_image_transforms(
             [
                 transforms.Resize(size, interpolation=mapping[interpolation]),
                 transforms.CenterCrop((crop_size, crop_size)),
+                transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
             ]
         )
     else:
@@ -44,6 +45,7 @@ def create_image_transforms(
             HorizontalFlip,
             RandomCrop,
             SmallestMaxSize,
+            Normalize,
         )
 
         mapping = {"bilinear": cv2.INTER_LINEAR, "bicubic": cv2.INTER_CUBIC}
@@ -54,6 +56,7 @@ def create_image_transforms(
                 if not random_crop
                 else RandomCrop(crop_size, crop_size)
             ),
+            Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
         ]
         if flip:
             transforms += [HorizontalFlip(p=0.5)]
@@ -69,6 +72,9 @@ def get_image_path_list(folder):
     out = []
     for fmt in fmts:
         out += glob.glob(os.path.join(folder, f"*.{fmt}"))
+    if len(out) == 0:
+        for fmt in fmts:
+            out += glob.glob(os.path.join(folder, f"*/*.{fmt}"))
     return sorted(out)
 
 
@@ -165,19 +171,16 @@ class ImageDataset:
                 raise IndexError  # needed for checking the end of dataset iteration
         """
 
-        # import pdb
-        # pdb.set_trace()
-
         if self.transform_backend == "pt":
             import torch
 
             pixel_values = torch.from_numpy(image).permute(2, 0, 1).contiguous()
             pixel_values = self.pixel_transforms(pixel_values)
             trans_image = pixel_values.numpy()
-            out_image = (trans_image / 127.5 - 1.0).astype(np.float32)
+            out_image = trans_image.astype(np.float32)
         elif self.transform_backend == "al":
             trans_image = self.pixel_transforms(image=image)["image"]
-            out_image = (trans_image / 127.5 - 1.0).astype(np.float32)
+            out_image = trans_image.astype(np.float32)
             out_image = out_image.transpose((2, 0, 1))  # h w c -> c h w
 
         if self.expand_dim_t:
