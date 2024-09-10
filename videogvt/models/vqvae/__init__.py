@@ -7,7 +7,7 @@ from .discriminator import StyleGANDiscriminator
 logger = logging.getLogger(__name__)
 
 
-def build_model(model_name, model_config, is_training=True, dtype=ms.float32):
+def build_model(model_name, model_config, is_training=True, pretrained=None, dtype=ms.float32):
     if model_name == "vqvae-2d":
         model = VQVAE_2D(
             model_config,
@@ -23,9 +23,9 @@ def build_model(model_name, model_config, is_training=True, dtype=ms.float32):
     else:
         raise NotImplementedError(f"{model_name} is not implemented.")
 
-    if model_config.from_pretrained is not None:
-        param_dict = ms.load_checkpoint(model_config.from_pretrained)
+    if pretrained is not None:
+        param_dict = ms.load_checkpoint(pretrained)
         ms.load_param_into_net(model, param_dict)
-        logger.info(f"Loading vqvae from {model_config.from_pretrained}.")
+        logger.info(f"Loading vqvae from {pretrained}.")
 
     return model

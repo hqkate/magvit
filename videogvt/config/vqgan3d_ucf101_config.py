@@ -7,9 +7,6 @@ import ml_collections
 from videogvt.config import vqgan2d_ucf101_config
 
 
-PRETRAINED_MODEL = "model_weights/vqvae-2d.ckpt"
-
-
 def get_config(config_str="MAGVIT-V2"):
     """Returns the base experiment configuration."""
     version, *options = config_str.split("-")
@@ -72,6 +69,5 @@ def get_config(config_str="MAGVIT-V2"):
     # Pretrained models on ImageNet.
     config.init_from = ml_collections.ConfigDict()
     config.init_from.inflation = "2d->3d"
-    config.from_pretrained = PRETRAINED_MODEL
 
     return config

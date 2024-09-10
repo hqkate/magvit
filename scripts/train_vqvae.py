@@ -89,7 +89,7 @@ def main(args):
     #  vqvae (G)
     model_config = get_config("B")
     dtype = {"fp32": ms.float32, "fp16": ms.float16, "bf16": ms.bfloat16}[args.dtype]
-    vqvae = build_model(args.model_class, model_config, is_training=True, dtype=dtype)
+    vqvae = build_model(args.model_class, model_config, is_training=True, pretrained=args.pretrained, dtype=dtype)
 
     # discriminator (D)
     use_discriminator = args.use_discriminator and (
