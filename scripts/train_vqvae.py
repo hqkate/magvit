@@ -52,12 +52,12 @@ def create_loss_scaler(
 ):
     if args.loss_scaler_type == "dynamic":
         loss_scaler = DynamicLossScaleUpdateCell(
-            loss_scale_value=args.init_loss_scale,
-            scale_factor=args.loss_scale_factor,
-            scale_window=args.scale_window,
+            loss_scale_value=init_loss_scale,
+            scale_factor=loss_scale_factor,
+            scale_window=scale_window,
         )
     elif args.loss_scaler_type == "static":
-        loss_scaler = nn.FixedLossScaleUpdateCell(args.init_loss_scale)
+        loss_scaler = nn.FixedLossScaleUpdateCell(init_loss_scale)
     else:
         raise ValueError
 
@@ -340,9 +340,6 @@ def main(args):
         logger.info(key_info)
 
     # 6. training process
-
-
-    logger.info("Start training...")
     # backup config files
     args.config = "videogvt/config/vqgan3d_ucf101_config.py"
     shutil.copyfile(args.config, os.path.join(args.output_path, os.path.basename(args.config)))
@@ -373,7 +370,6 @@ def main(args):
                 start_epoch=start_epoch,
                 model_name="vqvae_3d",
                 record_lr=False,
-                # save_training_resume=args.save_training_resume,
             )
             callback.append(save_cb)
             if args.profile:
@@ -398,6 +394,7 @@ def main(args):
         ds_iter = dataset.create_dict_iterator(args.epochs - start_epoch)
         bp_steps = 0
 
+        logger.info("Start training...")
         for epoch in range(start_epoch, args.epochs):
             epoch_loss = 0.0
             avg_loss = 0.0
@@ -441,23 +438,7 @@ def main(args):
                         vqvae_with_loss.set_train(False)
                         disc_with_loss.set_train(False)
                         ckpt_manager.save(vqvae_with_loss.vqvae, None, ckpt_name=ckpt_name, append_dict=None)
-                        # if args.save_training_resume:
-                        #     ms.save_checkpoint(
-                        #         training_step_vqvae,
-                        #         os.path.join(ckpt_dir, "train_resume.ckpt"),
-                        #         append_dict={
-                        #             "epoch_num": cur_epoch - 1,
-                        #             "loss_scale": loss_scaler_vqvae.loss_scale_value,
-                        #         },
-                        #     )
-                        #     ms.save_checkpoint(
-                        #         training_step_disc,
-                        #         os.path.join(ckpt_dir, "train_resume_disc.ckpt"),
-                        #         append_dict={
-                        #             "epoch_num": cur_epoch - 1,
-                        #             "loss_scale": loss_scaler_disc.loss_scale_value,
-                        #         },
-                        #     )
+
                         if ema is not None:
                             ema.swap_after_eval()
                         vqvae_with_loss.set_train(True)

@@ -131,6 +131,7 @@ class Encoder(nn.Cell):
                             filters,
                             kernel_size=(3, 3, 3),
                             strides=(t_stride, s_stride, s_stride),
+                            dtype=dtype,
                         )
                     )
                 else:
@@ -239,7 +240,7 @@ class Decoder(nn.Cell):
             if i > 0:
                 # SCH: T-Causal Conv 3x3x3, f -> (t_stride * 2 * 2) * f, depth to space t_stride x 2 x 2
                 if self.spatial_downsample[i - 1]:
-                    t_stride = 2 if self.spatial_downsample[i - 1] else 1
+                    t_stride = 2 if self.temporal_downsample[i - 1] else 1
                     # SCH: T-Causal Conv 3x3x3, f -> (t_stride * 2 * 2) * f, depth to space t_stride x 2 x 2
                     self.conv_blocks.insert(
                         0,
@@ -262,8 +263,8 @@ class Decoder(nn.Cell):
 
     def construct(self, x):
         x = self.conv1(x)
-        for i in range(self.num_res_blocks):
-            x = self.res_blocks[i](x)
+        for k in range(self.num_res_blocks):
+            x = self.res_blocks[k](x)
         for i in reversed(range(self.num_blocks)):
             for j in range(self.num_res_blocks):
                 x = self.block_res_blocks[i][j](x)

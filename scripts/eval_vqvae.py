@@ -89,7 +89,7 @@ def main(args):
         random_crop=False,
     )
 
-    ds_name = "video" if args.class_name == "vqvae-3d" else "image"
+    ds_name = "video" if args.model_class == "vqvae-3d" else "image"
     dataset = create_dataloader(
         ds_config=ds_config,
         batch_size=args.batch_size,

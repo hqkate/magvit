@@ -9,49 +9,7 @@ from videogvt.models.vqvae import enc_dec_3dcnn, enc_dec_2dcnn
 from .model_utils import CausalConv3d, pad_at_dim
 
 
-class VQVAE(nn.Cell):
-    """
-    VQVAE
-    """
-
-    @abstractmethod
-    def encode(self, x):
-        """
-        Apply encode to `x`.
-        """
-
-    @abstractmethod
-    def decode(self, x):
-        """
-        Apply decode to `x`.
-        """
-
-    def _forward(self, x):
-        # encode
-        z_e = self.encode(x)
-
-        # quantization
-        z_q, _, _ = self.quantizer(z_e)
-
-        # decode
-        recon_video = self.decode(z_q)
-
-        return recon_video
-
-    def construct(self, x):
-        # encode
-        z_e = self.encode(x)
-
-        # quantization
-        z_q, indices, aux_loss = self.quantizer(z_e)
-
-        # decode
-        recon_video = self.decode(z_q)
-
-        return z_e, z_q, recon_video, aux_loss
-
-
-class VQVAE_3D(VQVAE):
+class VQVAE_3D(nn.Cell):
     def __init__(
         self,
         config,
@@ -134,7 +92,7 @@ class VQVAE_3D(VQVAE):
         return z_e, z_q, recon_video, aux_loss
 
 
-class VQVAE_2D(VQVAE):
+class VQVAE_2D(nn.Cell):
     def __init__(
         self,
         config,
@@ -176,7 +134,25 @@ class VQVAE_2D(VQVAE):
         return x
 
     def _forward(self, x):
-        return super()._forward(x)
+        # encode
+        z_e = self.encode(x)
+
+        # quantization
+        z_q, _, _ = self.quantizer(z_e)
+
+        # decode
+        recon_video = self.decode(z_q)
+
+        return recon_video
 
     def construct(self, x):
-        return super().construct(x)
+        # encode
+        z_e = self.encode(x)
+
+        # quantization
+        z_q, indices, aux_loss = self.quantizer(z_e)
+
+        # decode
+        recon_video = self.decode(z_q)
+
+        return z_e, z_q, recon_video, aux_loss

@@ -140,7 +140,7 @@ class GeneratorWithLoss(nn.Cell):
         # x: b c t h w -> (b*t c h w), shape for image perceptual loss
 
         # 2. compuate loss
-        loss = self.loss_function(x, recons, aux_loss, cond)
+        loss = self.loss_function(x, recons, cond)
         loss += aux_loss
 
         return loss
